@@ -60,7 +60,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
       <section
         className={celticKnotClass(
           onlineState.inQueue,
-          'bg-slate-900 border border-slate-800 rounded-xl p-5 py-7 sm:p-7 flex flex-col gap-7'
+          'bg-slate-900 border border-slate-800 rounded-xl p-5 py-7 sm:p-7 flex flex-col gap-7 w-full min-w-0'
         )}
       >
         <div className="max-w-3xl space-y-4 text-sm sm:text-base text-slate-200 leading-7 z-10">
@@ -80,13 +80,13 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
         <RoleSummary field="goal" className="grid grid-cols-2 gap-3 sm:gap-6 pt-5 border-t border-slate-800 z-10" />
 
-        <div className="pt-1 z-10 flex flex-col gap-3">
+        <div className="pt-1 z-10 flex flex-col gap-3 w-full min-w-0">
           {onlineState.roomId ? (
-            <div className="flex flex-col sm:flex-row gap-2">
-              <Btn onClick={onLeaveRoom} variant="ghost" className="w-full min-h-14 hover:bg-rose-950 hover:text-rose-300">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full min-w-0">
+              <Btn onClick={onLeaveRoom} variant="ghost" className="w-full min-w-0 min-h-14 hover:bg-rose-950 hover:text-rose-300">
                 Leave match
               </Btn>
-              <Btn onClick={onEnterBoard} variant="success" className="w-full min-h-14 text-sm sm:text-base font-bold">
+              <Btn onClick={onEnterBoard} variant="success" className="w-full min-w-0 min-h-14 text-sm sm:text-base font-bold">
                 Return to board
               </Btn>
             </div>
