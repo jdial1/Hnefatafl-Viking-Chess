@@ -1,0 +1,6 @@
+{
+  "name": "Hnefatafl - Nordic Viking Chess",
+  "description": "Clean, modern, minimalist 11x11 Hnefatafl (Viking Chess) featuring pass-and-play, AI opponents, fluid drag-and-drop, tactile capture animations, and Web Audio sound effects.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
