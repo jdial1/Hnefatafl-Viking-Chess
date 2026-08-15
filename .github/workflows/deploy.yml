@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -104,7 +104,23 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
+      - name: Name APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk Hnefatafl-Viking-Chess.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: hnefatafl-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: Hnefatafl-Viking-Chess
+          path: Hnefatafl-Viking-Chess.apk
+      - name: Publish latest APK
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          NOTES="Debug APK from ${GITHUB_SHA::7}. Sideload on Android (allow unknown sources). Replaced on every main build."
+          if gh release view latest >/dev/null 2>&1; then
+            gh release upload latest Hnefatafl-Viking-Chess.apk --clobber
+            gh release edit latest --notes "$NOTES"
+          else
+            gh release create latest Hnefatafl-Viking-Chess.apk \
+              --title "Latest Android build" \
+              --notes "$NOTES" \
+              --latest
+          fi
