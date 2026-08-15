@@ -1,0 +1,56 @@
+---
+description: Non-negotiables that keep Hnefatafl tactile and intentional rather than hollow
+alwaysApply: true
+---
+
+# Soul and Juice
+
+This game is deliberately juiced. Do not add mechanics that only mutate state.
+Reasoning behind each rule is in `docs/SOUL.md`.
+
+## Feel constants are centralised
+
+Every duration, amplitude, and curve lives in `src/utils/juice.ts` as a named
+constant. Never inline a feel number in a component.
+
+```tsx
+// BAD - a magic number nobody can tune
+setTimeout(() => setDyingPieces([]), 260);
+
+// GOOD
+setTimeout(() => setDyingPieces([]), JUICE.deathMs);
+```
+
+## Every player action answers in at least two senses
+
+A new action needs sound plus something visual (motion, colour, or shake).
+`soundEngine` is pure synthesis, so add a method there rather than an audio file.
+Repeated sounds must go through `vary()` / `varyGain()` so the tenth move does
+not sound identical to the first.
+
+## Consequences persist
+
+Captures append to `scars` and survive reload via the `hnefatafl_save` blob.
+Only `handleNewGame` clears them. If you add a destructive event, leave a mark.
+
+## Motion is opt-out
+
+Gate anything kinetic on `settings.juiceEnabled`, and use `useScreenShake` or
+`useReducedMotion` so `prefers-reduced-motion` is respected structurally.
+
+## Role colours live in ROLE_META
+
+Add a field to `ROLE_META` in `src/utils/roles.ts`. Never hardcode amber or sky
+into a component.
+
+## Compatibility surfaces
+
+`Move.captures` stays `Position[]` and new `Move` fields stay optional. That type
+crosses the socket in `MovePayload` and sits in saved games, so widening it
+breaks online play against un-updated clients and existing saves.
+
+## Narrative must read the board
+
+`sagaVoice.ts` picks lines from what actually happened: who fell, where the piece
+landed, whether the king's road opened. Never add a random flavour-text pool that
+ignores position.

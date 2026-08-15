@@ -3,12 +3,14 @@ import React, { useEffect } from 'react';
 export interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
+  ariaLabel: string;
   maxWidth?: 'sm' | 'md' | 'lg' | 'xl';
+  scrollable?: boolean;
   className?: string;
   children: React.ReactNode;
 }
 
-const maxWidthClasses = {
+const MAX_WIDTH = {
   sm: 'max-w-sm',
   md: 'max-w-md',
   lg: 'max-w-lg',
@@ -18,7 +20,9 @@ const maxWidthClasses = {
 export const Modal: React.FC<ModalProps> = ({
   isOpen,
   onClose,
+  ariaLabel,
   maxWidth = 'md',
+  scrollable = false,
   className = '',
   children,
 }) => {
@@ -26,9 +30,7 @@ export const Modal: React.FC<ModalProps> = ({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
-    if (isOpen) {
-      window.addEventListener('keydown', handleKeyDown);
-    }
+    if (isOpen) window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
@@ -36,13 +38,18 @@ export const Modal: React.FC<ModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-950/80 overflow-y-auto"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 overflow-y-auto"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
       <div
-        className={`relative celtic-knot-border w-full ${maxWidthClasses[maxWidth]} bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 text-slate-200 shadow-2xl ${className}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label={ariaLabel}
+        className={`relative w-full ${MAX_WIDTH[maxWidth]} bg-slate-900 border border-slate-700 rounded-xl p-4 sm:p-6 text-slate-200 ${
+          scrollable ? 'max-h-[90vh] flex flex-col overflow-hidden' : ''
+        } ${className}`}
       >
         {children}
       </div>

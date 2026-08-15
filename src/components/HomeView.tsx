@@ -1,134 +1,138 @@
-import React from 'react';
-import {
-  Shield,
-  Swords,
-  Zap,
-  Radio,
-  Play,
-  RefreshCw,
-  UserCheck,
-} from '../icons';
-import { LobbyUser, OnlineMatchState } from '../types';
+import React, { useEffect, useState } from 'react';
+import { RefreshCw, Zap } from '../icons';
+import { OnlineMatchState } from '../types';
+import { PLAYER_ROLES, ROLE_META } from '../utils/roles';
+import { Btn, RoleIcon } from './ui';
+
+const SEARCH_FLAVOR = [
+  'Watching the shoreline for sails',
+  'Horns are quiet. The next shield-wall has not formed',
+  'Ravens circle, waiting for a worthy foe',
+  'The mead-hall is empty. A rival is still on the road',
+  'The pieces are set. Listening for footsteps',
+  'Fog on the fjord. No enemy banners yet',
+  'The king sits the throne. His hunters have not arrived',
+  'The wait is sharpened into a weapon',
+  'Snow on the board. A challenger is still crossing it',
+  'The watch-fire burns. No sails on the dark water',
+  'A contest is called. The wind has not answered',
+  'Spears are stacked. The other host is still gathering',
+];
+
+let lastFlavor = -1;
+
+function nextFlavor(): number {
+  let index = Math.floor(Math.random() * SEARCH_FLAVOR.length);
+  if (SEARCH_FLAVOR.length > 1 && index === lastFlavor) {
+    index = (index + 1) % SEARCH_FLAVOR.length;
+  }
+  lastFlavor = index;
+  return index;
+}
 
 interface HomeViewProps {
   onlineState: OnlineMatchState;
-  lobbyUsers: LobbyUser[];
-  onSetUsername: (name: string) => void;
   onJoinQueue: () => void;
   onLeaveQueue: () => void;
+  onLeaveRoom: () => void;
   onEnterBoard: () => void;
+  onSignIn: () => void;
 }
 
 export const HomeView: React.FC<HomeViewProps> = ({
   onlineState,
-  lobbyUsers: _lobbyUsers,
-  onSetUsername: _onSetUsername,
   onJoinQueue,
   onLeaveQueue,
+  onLeaveRoom,
   onEnterBoard,
+  onSignIn,
 }) => {
+  const [flavorIndex, setFlavorIndex] = useState(0);
+
+  useEffect(() => {
+    if (onlineState.inQueue) setFlavorIndex(nextFlavor());
+  }, [onlineState.inQueue]);
+
   return (
-    <div className="w-full max-w-4xl mx-auto flex flex-col gap-4 sm:gap-5 px-1 sm:px-4 py-2 mt-2 sm:mt-8">
-      {/* Hero Summary & Matchmaking Card */}
-      <section className={`relative min-h-[360px] sm:min-h-0 bg-slate-900 border-y sm:border border-slate-800 sm:rounded-2xl p-4 py-8 sm:p-6 sm:py-8 shadow-xl flex flex-col justify-center gap-6 sm:gap-6 celtic-knot-border ${onlineState.inQueue ? 'celtic-knot-active' : ''}`}>
-        
-        {/* Full Summary Description */}
-        <div className="space-y-3 sm:space-y-4 text-xs sm:text-sm text-slate-300 leading-relaxed font-sans z-10">
+    <div className="w-full max-w-4xl mx-auto flex flex-col gap-7 sm:gap-9 px-4 py-3 sm:py-6">
+      <section
+        className={`relative bg-slate-900 border border-slate-800 rounded-xl p-5 py-7 sm:p-7 flex flex-col gap-7 celtic-knot-border ${
+          onlineState.inQueue ? 'celtic-knot-active' : ''
+        }`}
+      >
+        <div className="max-w-3xl space-y-4 text-sm sm:text-base text-slate-200 leading-7 z-10">
+          <h2 className="text-xl sm:text-2xl text-slate-100 font-semibold leading-tight">
+            How Hnefatæfl <span className="font-normal text-slate-400">(nef-ah-tah-fel)</span> is played
+          </h2>
           <p>
-            <strong className="text-slate-100 font-celtic text-base tracking-wider">Hnefatæfl</strong> (Viking Chess) is a legendary Norse strategy board game played on an 11x11 grid. It is an asymmetric game pitting two unequal forces against each other.
+            Viking Chess is a Norse strategy game played on an 11x11 grid. Two unequal forces pursue different paths to victory.
           </p>
           <p>
-            The <span className="text-amber-400 font-semibold">12 Defenders</span> and their King start in the center. Their goal is to escort the King to safety by reaching any of the four corner refuge squares. 
+            The <span className={`${ROLE_META.defenders.colorClass} font-semibold`}>12 Defenders</span> and their King start in the center. Their goal is to escort the King to safety by reaching any of the four corner refuge squares.
           </p>
           <p>
-            The <span className="text-sky-400 font-semibold">24 Attackers</span> surround the defenders from the edges. Their objective is to capture the King by completely surrounding him on all four sides.
+            The <span className={`${ROLE_META.attackers.colorClass} font-semibold`}>24 Attackers</span> surround the defenders from the edges. Their objective is to capture the King by completely surrounding him on all four sides.
           </p>
-
         </div>
 
-        {/* Quick Highlights */}
-        <div className="grid grid-cols-2 gap-2 sm:gap-4 text-xs pt-4 border-t border-slate-800/70 z-10">
-          <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
-            <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400 shrink-0" />
-            <div className="min-w-0">
-              <span className="font-bold text-slate-100 block truncate">Defenders (12 + King)</span>
-              <span className="text-slate-400 text-xs block truncate">Escort King to corner</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
-            <Swords className="w-4 h-4 sm:w-5 sm:h-5 text-sky-400 shrink-0 rotate-90" />
-            <div className="min-w-0">
-              <span className="font-bold text-slate-100 block truncate">Attackers (24)</span>
-              <span className="text-slate-400 text-xs block truncate">Surround & capture King</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Online Matchmaking Controls */}
-        <div className="pt-4 z-10 mt-2">
-          {onlineState.roomId ? (
-            <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <Radio className="w-4 h-4 text-emerald-400" />
-                  <span className="text-xs font-bold text-amber-400 font-mono uppercase">
-                    Connected
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 pt-5 border-t border-slate-800 z-10">
+          {PLAYER_ROLES.map((role) => {
+            const meta = ROLE_META[role];
+            return (
+              <div key={role} className="flex items-start gap-3 min-w-0">
+                <RoleIcon role={role} className={`w-5 h-5 ${meta.colorClass} shrink-0 mt-0.5`} />
+                <div className="min-w-0">
+                  <span className="font-semibold text-slate-100 block">
+                    {meta.plural} ({meta.force})
                   </span>
-                </div>
-
-                <div className="text-xs text-slate-300">
-                  {onlineState.opponentName ? (
-                    <span className="text-emerald-400 font-semibold flex items-center gap-1">
-                      <UserCheck className="w-3.5 h-3.5" />
-                      Matched with <span className="font-celtic text-sm">{onlineState.opponentName}</span> ({onlineState.role})
-                    </span>
-                  ) : (
-                    <span className="text-amber-400 flex items-center gap-1">
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      Waiting for opponent...
-                    </span>
-                  )}
+                  <span className="text-slate-300 text-sm block">{meta.goal}</span>
                 </div>
               </div>
-
-              <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
-                <button
-                  onClick={onEnterBoard}
-                  className="px-4 py-2 text-xs font-bold rounded-xl bg-emerald-500 text-slate-950 hover:bg-emerald-400 transition-colors flex-1 sm:flex-none"
-                >
-                  Enter Game Board
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="w-full">
-              {onlineState.inQueue ? (
-                <button
-                  onClick={onLeaveQueue}
-                  className="w-full h-[60px] sm:h-[64px] rounded-xl bg-amber-500/10 border border-amber-500/30 hover:bg-rose-950/30 hover:border-rose-500/30 text-amber-400 hover:text-rose-400 text-sm sm:text-base font-black uppercase tracking-wider flex flex-col items-center justify-center gap-0.5 transition-colors group"
-                >
-                  <div className="flex items-center gap-2">
-                    <RefreshCw className="w-5 h-5 animate-spin shrink-0 group-hover:text-rose-400" />
-                    <span>Searching for opponent...</span>
-                  </div>
-                  <span className="text-xs text-amber-400/60 group-hover:text-rose-400/60 font-bold normal-case tracking-normal leading-none">
-                    Tap to cancel
-                  </span>
-                </button>
-              ) : (
-                <button
-                  onClick={onJoinQueue}
-                  className="w-full h-[60px] sm:h-[64px] rounded-xl bg-amber-500 text-slate-950 hover:bg-amber-400 text-sm sm:text-base font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-colors"
-                >
-                  <Zap className="w-5 h-5 fill-current" />
-                  <span>Play Online Match</span>
-                </button>
-              )}
-            </div>
-          )}
+            );
+          })}
         </div>
+
+        {!onlineState.isSignedIn ? (
+          <div className="pt-1 z-10 flex flex-col gap-3">
+            <Btn onClick={onSignIn} variant="primary" className="w-full min-h-14 text-sm sm:text-base font-bold">
+              Sign in with Google
+            </Btn>
+            <p className="text-sm text-slate-400 text-center">Sign in to play an online match. Sandbox stays open without an account.</p>
+          </div>
+        ) : (
+          <div className="pt-1 z-10 flex flex-col gap-3">
+            {onlineState.roomId ? (
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Btn onClick={onLeaveRoom} variant="ghost" className="w-full min-h-14 hover:bg-rose-950 hover:text-rose-300">
+                  Leave match
+                </Btn>
+                <Btn onClick={onEnterBoard} variant="success" className="w-full min-h-14 text-sm sm:text-base font-bold">
+                  Return to board
+                </Btn>
+              </div>
+            ) : onlineState.inQueue ? (
+              <Btn
+                onClick={onLeaveQueue}
+                variant="amber"
+                className="w-full min-h-14 text-sm sm:text-base font-bold flex-col gap-0.5 group hover:bg-rose-950/30 hover:text-rose-300"
+              >
+                <span className="flex items-center gap-2">
+                  <RefreshCw className="w-5 h-5 animate-spin shrink-0" />
+                  {SEARCH_FLAVOR[flavorIndex]}
+                </span>
+                <span className="text-xs text-amber-200/70 group-hover:text-rose-200/70 font-medium leading-none">
+                  Tap to cancel
+                </span>
+              </Btn>
+            ) : (
+              <Btn onClick={onJoinQueue} variant="primary" className="w-full min-h-14 text-sm sm:text-base font-bold">
+                <Zap className="w-5 h-5 fill-current" />
+                Play Online Match
+              </Btn>
+            )}
+          </div>
+        )}
       </section>
     </div>
   );
 };
-

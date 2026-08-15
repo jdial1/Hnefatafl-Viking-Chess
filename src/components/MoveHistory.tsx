@@ -1,6 +1,7 @@
-import { History } from "../icons";
+import { History } from '../icons';
 import React from 'react';
 import { Move } from '../types';
+import { ROLE_META } from '../utils/roles';
 import { Modal } from './Modal';
 import { ModalHeader } from './ModalHeader';
 
@@ -12,50 +13,41 @@ interface MoveHistoryProps {
 
 export const MoveHistory: React.FC<MoveHistoryProps> = ({ isOpen, moves, onClose }) => {
   return (
-    <Modal isOpen={isOpen} onClose={onClose} maxWidth="sm" className="max-h-[85vh] flex flex-col">
+    <Modal isOpen={isOpen} onClose={onClose} ariaLabel="Move log" maxWidth="sm" scrollable>
       <ModalHeader
-        title={`Move Log (${moves.length})`}
-        subtitle="Algebraic Notation"
-        icon={History}
+        title={`Saga of the Board (${moves.length})`}
+        subtitle="The battle as it was told"
+        icon={<History className="w-5 h-5 text-amber-300" />}
         onClose={onClose}
         closeAriaLabel="Close move log"
       />
 
-      <div className="mt-4 overflow-y-auto max-h-[55vh] space-y-2 pr-1 text-xs">
+      <div className="overflow-y-auto max-h-[55vh] pr-2 text-sm">
         {moves.length === 0 ? (
-          <div className="text-center py-8 text-slate-400">
-            No moves played yet.
-          </div>
+          <div className="py-8 text-slate-300">The board is still and nothing has been told.</div>
         ) : (
-          moves.map((move, idx) => (
-            <div
-              key={idx}
-              className="flex items-center justify-between p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/80 font-mono"
-            >
-              <div className="flex items-center gap-2">
-                <span className="text-slate-400 text-xs w-6">#{idx + 1}</span>
-                <span
-                  className={`font-semibold ${
-                    move.piece.role === 'defenders' ? 'text-amber-400' : 'text-slate-300'
-                  }`}
-                >
-                  {move.notation}
-                </span>
-              </div>
-              {move.captures.length > 0 && (
-                <span className="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-400 font-bold text-xs border border-rose-500/30">
-                  +{move.captures.length} CAPTURE
-                </span>
-              )}
-            </div>
-          ))
+          <ol className="divide-y divide-slate-800/80">
+            {moves.map((move, idx) => (
+              <li key={`${move.timestamp}-${idx}`} className="py-2.5 flex items-start gap-2.5">
+                <span className="font-mono text-xs text-slate-500 pt-0.5 shrink-0">{idx + 1}</span>
+                <div className="flex-1 min-w-0">
+                  <p className={`leading-snug ${ROLE_META[move.piece.role].mutedClass}`}>
+                    {move.saga ?? move.notation}
+                  </p>
+                  {move.saga && (
+                    <p className="font-mono text-xs text-slate-500 mt-0.5">{move.notation}</p>
+                  )}
+                </div>
+                {move.captures.length > 0 && (
+                  <span className="px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-300 font-semibold text-xs shrink-0">
+                    +{move.captures.length}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ol>
         )}
-      </div>
-
-      <div className="mt-4 pt-3 border-t border-slate-800 text-center text-xs text-slate-400 font-mono">
-        Standard Algebraic Movement Log
       </div>
     </Modal>
   );
 };
-

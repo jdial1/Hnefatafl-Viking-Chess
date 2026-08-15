@@ -1,20 +1,10 @@
-import { Shield, Crown } from "../icons";
+import { Shield, Crown } from '../icons';
 import React, { useMemo, memo, useState, useRef } from 'react';
 import { motion, LayoutGroup, AnimatePresence } from 'motion/react';
-
-import {
-  AccentColor,
-  BoardState,
-  GridStyle,
-  Piece,
-  PlayerRole,
-  Position,
-} from '../types';
-import {
-  BOARD_SIZE,
-  isCorner,
-  isThrone,
-} from '../utils/hnefataflEngine';
+import { BoardState, DyingPiece, Piece, PlayerRole, Position, Scar } from '../types';
+import { BOARD_SIZE, isCorner, isThrone, toAlgebraic } from '../utils/hnefataflEngine';
+import { JUICE, scarOpacity } from '../utils/juice';
+import { ROLE_META } from '../utils/roles';
 import { PieceComponent } from './Piece';
 
 interface BoardProps {
@@ -22,38 +12,72 @@ interface BoardProps {
   selectedPos: Position | null;
   validMoves: Position[];
   lastMove: { from: Position; to: Position; piece?: Piece } | null;
-  capturingPositions: Position[];
+  dyingPieces: DyingPiece[];
+  scars: Scar[];
+  moveCount: number;
   currentTurn: PlayerRole;
-  gridStyle: GridStyle;
-  accentColor: AccentColor;
   showValidMoves: boolean;
+  juiceEnabled: boolean;
+  isEscapeThreat: boolean;
   onSelectPiece: (pos: Position) => void;
   onMovePiece: (to: Position) => void;
 }
+
+const cellKey = (r: number, c: number) => `${r},${c}`;
+const positionSet = (positions: Position[]) => new Set(positions.map(({ r, c }) => cellKey(r, c)));
 
 export const Board: React.FC<BoardProps> = memo(({
   board,
   selectedPos,
   validMoves,
   lastMove,
-  capturingPositions,
+  dyingPieces,
+  scars,
+  moveCount,
   currentTurn,
-  gridStyle,
-  accentColor,
   showValidMoves,
+  juiceEnabled,
+  isEscapeThreat,
   onSelectPiece,
   onMovePiece,
 }) => {
-  // Touch feedback and drag vs tap tracking state
-  const [touchingCell, setTouchingCell] = useState<{ r: number; c: number } | null>(null);
-  const [hoveredDragCell, setHoveredDragCell] = useState<{ r: number; c: number } | null>(null);
+  const [touchingCell, setTouchingCell] = useState<Position | null>(null);
+  const [hoveredDragCell, setHoveredDragCell] = useState<Position | null>(null);
   const [focusedPos, setFocusedPos] = useState<Position | null>(null);
 
   const touchStartRef = useRef<{ x: number; y: number; r: number; c: number } | null>(null);
-  const isDraggingRef = useRef<boolean>(false);
-  const preventClickRef = useRef<boolean>(false);
+  const isDraggingRef = useRef(false);
+  const preventClickRef = useRef(false);
 
-  // Keyboard navigation across the 11x11 grid
+  const validMoveSet = useMemo(() => positionSet(validMoves), [validMoves]);
+  const lastMoveSet = useMemo(
+    () => positionSet(lastMove ? [lastMove.from, lastMove.to] : []),
+    [lastMove]
+  );
+  const dyingByCell = useMemo(
+    () => new Map(dyingPieces.map((dying) => [cellKey(dying.pos.r, dying.pos.c), dying.piece])),
+    [dyingPieces]
+  );
+  /** Only the newest scar per square is drawn; a square can fall more than once. */
+  const scarByCell = useMemo(() => {
+    const map = new Map<string, Scar>();
+    scars.forEach((scar) => map.set(cellKey(scar.r, scar.c), scar));
+    return map;
+  }, [scars]);
+
+  const handleCellClick = (r: number, c: number) => {
+    const piece = board[r][c];
+    if (selectedPos && validMoveSet.has(cellKey(r, c))) {
+      onMovePiece({ r, c });
+      return;
+    }
+    if (piece && piece.role === currentTurn) {
+      onSelectPiece({ r, c });
+    } else {
+      onSelectPiece({ r: -1, c: -1 });
+    }
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     const cur = focusedPos || selectedPos || { r: 5, c: 5 };
     let nr = cur.r;
@@ -62,19 +86,15 @@ export const Board: React.FC<BoardProps> = memo(({
     switch (e.key) {
       case 'ArrowUp':
         nr = Math.max(0, cur.r - 1);
-        e.preventDefault();
         break;
       case 'ArrowDown':
         nr = Math.min(BOARD_SIZE - 1, cur.r + 1);
-        e.preventDefault();
         break;
       case 'ArrowLeft':
         nc = Math.max(0, cur.c - 1);
-        e.preventDefault();
         break;
       case 'ArrowRight':
         nc = Math.min(BOARD_SIZE - 1, cur.c + 1);
-        e.preventDefault();
         break;
       case 'Enter':
       case ' ':
@@ -90,93 +110,55 @@ export const Board: React.FC<BoardProps> = memo(({
         return;
     }
 
+    e.preventDefault();
     setFocusedPos({ r: nr, c: nc });
   };
 
-  // Fast O(1) set lookups for grid rendering
-  const validMoveSet = useMemo(() => {
-    const set = new Set<string>();
-    if (showValidMoves) {
-      validMoves.forEach(m => set.add(`${m.r},${m.c}`));
-    }
-    return set;
-  }, [validMoves, showValidMoves]);
-
-  const capturingSet = useMemo(() => {
-    const set = new Set<string>();
-    capturingPositions.forEach(p => set.add(`${p.r},${p.c}`));
-    return set;
-  }, [capturingPositions]);
-
-  const lastMoveSet = useMemo(() => {
-    const set = new Set<string>();
-    if (lastMove) {
-      set.add(`${lastMove.from.r},${lastMove.from.c}`);
-      set.add(`${lastMove.to.r},${lastMove.to.c}`);
-    }
-    return set;
-  }, [lastMove]);
-
-  // Vector arrow calculations for last move visualization
   const arrowData = useMemo(() => {
     if (!lastMove) return null;
     const fromX = lastMove.from.c * 100 + 50;
     const fromY = lastMove.from.r * 100 + 50;
     const toX = lastMove.to.c * 100 + 50;
     const toY = lastMove.to.r * 100 + 50;
-
     const dx = toX - fromX;
     const dy = toY - fromY;
     const distance = Math.hypot(dx, dy);
-
     if (distance === 0) return null;
-
     const angle = Math.atan2(dy, dx);
-    const startOffset = 28;
-    const endOffset = 34;
-
-    const startX = fromX + Math.cos(angle) * startOffset;
-    const startY = fromY + Math.sin(angle) * startOffset;
-    const endX = toX - Math.cos(angle) * endOffset;
-    const endY = toY - Math.sin(angle) * endOffset;
-
     return {
-      startX,
-      startY,
-      endX,
-      endY,
+      startX: fromX + Math.cos(angle) * 28,
+      startY: fromY + Math.sin(angle) * 28,
+      endX: toX - Math.cos(angle) * 34,
+      endY: toY - Math.sin(angle) * 34,
       angleDeg: (angle * 180) / Math.PI,
     };
   }, [lastMove]);
 
-  const handleCellClick = (r: number, c: number) => {
-    const piece = board[r][c];
+  /**
+   * Cells are around 30px on a phone, so an exact release is an unfair ask.
+   * Accepts the closest legal destination within roughly one cell of the finger.
+   */
+  const snapToValidMove = (x: number, y: number): Position | null => {
+    let best: { pos: Position; distance: number } | null = null;
 
-    // If clicking a valid move destination for selected piece
-    if (selectedPos && validMoveSet.has(`${r},${c}`)) {
-      onMovePiece({ r, c });
-      return;
+    for (const move of validMoves) {
+      const el = document.getElementById(`cell-${move.r}-${move.c}`);
+      if (!el) continue;
+      const rect = el.getBoundingClientRect();
+      const distance = Math.hypot(x - (rect.left + rect.width / 2), y - (rect.top + rect.height / 2));
+      const reach = Math.max(rect.width, rect.height);
+      if (distance <= reach && (!best || distance < best.distance)) {
+        best = { pos: { r: move.r, c: move.c }, distance };
+      }
     }
 
-    // Otherwise select piece if it belongs to current player
-    if (piece && piece.role === currentTurn) {
-      onSelectPiece({ r, c });
-    } else {
-      // Clear selection if clicking empty square or opponent piece
-      onSelectPiece({ r: -1, c: -1 });
-    }
+    return best?.pos ?? null;
   };
 
   const handleTouchStart = (r: number, c: number, e: React.TouchEvent) => {
     const touch = e.touches[0];
     if (!touch) return;
-
-    touchStartRef.current = {
-      x: touch.clientX,
-      y: touch.clientY,
-      r,
-      c,
-    };
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY, r, c };
     isDraggingRef.current = false;
     setTouchingCell({ r, c });
   };
@@ -185,57 +167,44 @@ export const Board: React.FC<BoardProps> = memo(({
     if (!touchStartRef.current) return;
     const touch = e.touches[0];
     if (!touch) return;
-
-    const dx = touch.clientX - touchStartRef.current.x;
-    const dy = touch.clientY - touchStartRef.current.y;
-    const dist = Math.hypot(dx, dy);
-
-    // If moved more than 10px, classify as a drag or scroll interaction
-    if (dist > 10) {
-      isDraggingRef.current = true;
-      setTouchingCell(null); // Clear active tap highlight
-
-      // Identify target cell under touch point
-      const el = document.elementFromPoint(touch.clientX, touch.clientY);
-      const cellEl = el?.closest('[data-cell-pos]');
-      if (cellEl) {
-        const posStr = cellEl.getAttribute('data-cell-pos');
-        if (posStr) {
-          const [tr, tc] = posStr.split(',').map(Number);
-          setHoveredDragCell({ r: tr, c: tc });
-          return;
-        }
-      }
+    const dist = Math.hypot(touch.clientX - touchStartRef.current.x, touch.clientY - touchStartRef.current.y);
+    if (dist <= 10) return;
+    isDraggingRef.current = true;
+    setTouchingCell(null);
+    const cellEl = document.elementFromPoint(touch.clientX, touch.clientY)?.closest('[data-cell-pos]');
+    const posStr = cellEl?.getAttribute('data-cell-pos');
+    if (posStr) {
+      const [tr, tc] = posStr.split(',').map(Number);
+      setHoveredDragCell({ r: tr, c: tc });
+    } else {
       setHoveredDragCell(null);
     }
   };
 
-  const handleTouchEnd = (r: number, c: number) => {
+  const handleTouchEnd = (e: React.TouchEvent) => {
     if (!touchStartRef.current) return;
     const start = touchStartRef.current;
     touchStartRef.current = null;
     setTouchingCell(null);
-
     const hovered = hoveredDragCell;
     setHoveredDragCell(null);
-
-    // Suppress subsequent mouse click event generated by browser
     preventClickRef.current = true;
     setTimeout(() => {
       preventClickRef.current = false;
     }, 350);
 
-    // If interaction was a drag or scroll gesture
     if (isDraggingRef.current) {
-      // If dragged onto a valid destination cell for selected piece, perform move
-      if (hovered && selectedPos && validMoveSet.has(`${hovered.r},${hovered.c}`)) {
+      if (!selectedPos) return;
+      if (hovered && validMoveSet.has(cellKey(hovered.r, hovered.c))) {
         onMovePiece({ r: hovered.r, c: hovered.c });
+        return;
       }
-      // Otherwise, ignore drag to prevent accidental moves on mobile scroll
+      const touch = e.changedTouches[0];
+      const snapped = touch ? snapToValidMove(touch.clientX, touch.clientY) : null;
+      if (snapped) onMovePiece(snapped);
       return;
     }
 
-    // Intentional tap on starting cell
     handleCellClick(start.r, start.c);
   };
 
@@ -246,87 +215,21 @@ export const Board: React.FC<BoardProps> = memo(({
     setHoveredDragCell(null);
   };
 
-  const handleClick = (r: number, c: number) => {
-    if (preventClickRef.current) return;
-    handleCellClick(r, c);
-  };
-
   return (
     <div
       tabIndex={0}
       onKeyDown={handleKeyDown}
-      className="relative w-full max-w-[620px] aspect-square mx-auto select-none outline-none focus:ring-2 focus:ring-amber-500/50 rounded-lg sm:rounded-2xl"
+      className="relative w-full max-w-[620px] aspect-square mx-auto select-none outline-none focus-visible:ring-2 focus-visible:ring-amber-400 rounded-xl"
     >
-      {/* Outer Nordic Slate Board Container */}
-      <div className="w-full h-full p-0.5 sm:p-3 rounded-lg sm:rounded-2xl bg-slate-900/90 border border-slate-800 flex flex-col justify-between">
-        {/* 11x11 Grid Layout with Framer Motion LayoutGroup */}
+      <div className="w-full h-full p-0.5 sm:p-2 rounded-xl bg-slate-900 border border-slate-800 flex flex-col justify-between">
         <LayoutGroup id="hnefatafl-board">
-          <div className="relative grid grid-cols-11 grid-rows-11 gap-0.5 sm:gap-1 w-full h-full rounded-md sm:rounded-xl bg-slate-950/60 border border-slate-800/80 p-0.5 sm:p-1">
-            {/* Previous Move Vector Arrow Overlay */}
+          <div className="relative grid grid-cols-11 grid-rows-11 gap-0.5 sm:gap-1 w-full h-full rounded-lg bg-slate-950 border border-slate-800 p-0.5 sm:p-1">
             {arrowData && (
-              <svg
-                className="absolute inset-0 w-full h-full pointer-events-none z-30 overflow-visible p-0.5 sm:p-1"
-                viewBox="0 0 1100 1100"
-              >
-                <defs>
-                  <filter id="move-arrow-glow" x="-30%" y="-30%" width="160%" height="160%">
-                    <feGaussianBlur stdDeviation="5" result="blur" />
-                    <feMerge>
-                      <feMergeNode in="blur" />
-                      <feMergeNode in="SourceGraphic" />
-                    </feMerge>
-                  </filter>
-                  <linearGradient id="move-arrow-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#fbbf24" stopOpacity="0.8" />
-                    <stop offset="100%" stopColor="#f59e0b" stopOpacity="1" />
-                  </linearGradient>
-                </defs>
-
-                {/* Glowing Background Stroke */}
-                <line
-                  x1={arrowData.startX}
-                  y1={arrowData.startY}
-                  x2={arrowData.endX}
-                  y2={arrowData.endY}
-                  stroke="#f59e0b"
-                  strokeWidth="14"
-                  strokeLinecap="round"
-                  strokeOpacity="0.35"
-                  filter="url(#move-arrow-glow)"
-                />
-
-                {/* Animated Dashed Vector Line */}
-                <line
-                  x1={arrowData.startX}
-                  y1={arrowData.startY}
-                  x2={arrowData.endX}
-                  y2={arrowData.endY}
-                  stroke="url(#move-arrow-grad)"
-                  strokeWidth="7"
-                  strokeLinecap="round"
-                  className="animate-knot-dash"
-                />
-
-                {/* Origin Circle Marker */}
-                <circle
-                  cx={arrowData.startX}
-                  cy={arrowData.startY}
-                  r="7"
-                  fill="#fbbf24"
-                  stroke="#78350f"
-                  strokeWidth="2.5"
-                  filter="url(#move-arrow-glow)"
-                />
-
-                {/* Destination Arrowhead */}
+              <svg className="absolute inset-0 w-full h-full pointer-events-none z-30 overflow-visible p-0.5 sm:p-1" viewBox="0 0 1100 1100">
+                <line x1={arrowData.startX} y1={arrowData.startY} x2={arrowData.endX} y2={arrowData.endY} stroke="#f59e0b" strokeWidth="7" strokeLinecap="round" strokeOpacity="0.85" />
+                <circle cx={arrowData.startX} cy={arrowData.startY} r="7" fill="#fbbf24" />
                 <g transform={`translate(${arrowData.endX}, ${arrowData.endY}) rotate(${arrowData.angleDeg})`}>
-                  <path
-                    d="M -18,-13 L 8,0 L -18,13 Z"
-                    fill="#f59e0b"
-                    stroke="#fef3c7"
-                    strokeWidth="2"
-                    filter="url(#move-arrow-glow)"
-                  />
+                  <path d="M -18,-13 L 8,0 L -18,13 Z" fill="#f59e0b" />
                 </g>
               </svg>
             )}
@@ -336,106 +239,110 @@ export const Board: React.FC<BoardProps> = memo(({
                 const piece = board[r][c];
                 const isSelected = selectedPos?.r === r && selectedPos?.c === c;
                 const isFocused = focusedPos?.r === r && focusedPos?.c === c;
-                const isValid = validMoveSet.has(`${r},${c}`);
-                const isCapturing = capturingSet.has(`${r},${c}`);
-                const isLast = lastMoveSet.has(`${r},${c}`);
+                const isValid = showValidMoves && validMoveSet.has(cellKey(r, c));
+                const dyingPiece = dyingByCell.get(cellKey(r, c));
+                const scar = scarByCell.get(cellKey(r, c));
+                const isLandingCell = Boolean(lastMove && lastMove.to.r === r && lastMove.to.c === c);
+                const isAlertKing = isEscapeThreat && piece?.type === 'king';
+                const isLast = lastMoveSet.has(cellKey(r, c));
                 const isCornerSquare = isCorner(r, c);
                 const isThroneSquare = isThrone(r, c);
-
                 const ghostPiece = lastMove?.piece || (lastMove ? board[lastMove.to.r]?.[lastMove.to.c] : null);
                 const isGhostCell = Boolean(lastMove && lastMove.from.r === r && lastMove.from.c === c && !piece && ghostPiece);
-
                 const isTouched = touchingCell?.r === r && touchingCell?.c === c;
                 const isDragHovered = hoveredDragCell?.r === r && hoveredDragCell?.c === c;
-
-                const colLetter = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K'][c];
-                const cellNotation = `${colLetter}${11 - r}`;
 
                 return (
                   <div
                     key={`${r}-${c}`}
                     id={`cell-${r}-${c}`}
                     data-cell-pos={`${r},${c}`}
-                    aria-label={`Square ${cellNotation}${piece ? `, ${piece.role} ${piece.type}` : ''}`}
-                    onClick={() => handleClick(r, c)}
+                    aria-label={`Square ${toAlgebraic(r, c)}${piece ? `, ${piece.role} ${piece.type}` : ''}`}
+                    onClick={() => {
+                      if (!preventClickRef.current) handleCellClick(r, c);
+                    }}
                     onTouchStart={(e) => handleTouchStart(r, c, e)}
                     onTouchMove={handleTouchMove}
-                    onTouchEnd={() => handleTouchEnd(r, c)}
+                    onTouchEnd={handleTouchEnd}
                     onTouchCancel={handleTouchCancel}
-                    className={`relative flex items-center justify-center rounded-md sm:rounded-lg transition-colors duration-100 cursor-pointer ${
-                      gridStyle === 'dots'
-                        ? 'bg-slate-900/40 hover:bg-slate-800/50'
-                        : gridStyle === 'lines'
-                        ? 'bg-slate-900/60 border border-slate-800/30 hover:bg-slate-800/60'
-                        : 'bg-slate-950 hover:bg-slate-900/60'
-                    } ${
-                      isFocused
-                        ? 'ring-2 ring-amber-400 border border-amber-300 z-30 shadow-lg shadow-amber-500/20'
-                        : ''
+                    className={`relative flex items-center justify-center rounded-md sm:rounded-lg transition-colors duration-100 cursor-pointer bg-slate-900/40 hover:bg-slate-800/50 ${
+                      isFocused ? 'outline outline-2 outline-amber-300 outline-offset-[-2px] z-30' : ''
                     } ${
                       isTouched
-                        ? 'scale-95 bg-amber-500/30 border border-amber-400 ring-2 ring-amber-400/80 z-20'
+                        ? 'bg-amber-500/25 z-20'
                         : isDragHovered && isValid
-                        ? 'scale-105 bg-amber-400/40 border-2 border-amber-300 ring-4 ring-amber-400/60 z-30'
+                        ? 'bg-amber-400/35 outline outline-2 outline-amber-300 outline-offset-[-2px] z-30'
                         : isSelected
-                        ? 'ring-2 ring-amber-400 bg-amber-500/10 dark:bg-amber-400/15'
+                        ? 'outline outline-2 outline-amber-400 outline-offset-[-2px] bg-amber-500/10'
                         : isValid
-                        ? 'bg-amber-400/20 dark:bg-amber-400/25 border border-amber-400/50'
+                        ? 'bg-amber-400/15'
                         : isLast
-                        ? 'bg-slate-800/60 border border-slate-700/60'
+                        ? 'bg-slate-800/70'
                         : ''
                     }`}
                   >
-                    {/* Subtle Grid Dot Accent */}
-                    {gridStyle === 'dots' && !isCornerSquare && !isThroneSquare && !piece && (
-                      <div className="w-1 h-1 rounded-full bg-slate-700/40" />
-                    )}
-
-                    {/* Corner Escape Refuge Indicator */}
+                    {!isCornerSquare && !isThroneSquare && !piece && <div className="w-1 h-1 rounded-full bg-slate-700/40" />}
                     {isCornerSquare && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-cyan-950/50 border border-cyan-500/30 rounded-md sm:rounded-lg overflow-hidden">
+                      <div className="absolute inset-0 flex items-center justify-center bg-cyan-950/60 rounded-md sm:rounded-lg overflow-hidden">
                         <Shield className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-cyan-400 opacity-80" />
                       </div>
                     )}
-
-                    {/* Throne Center Square Indicator */}
                     {isThroneSquare && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-amber-950/40 border border-amber-500/30 rounded-md sm:rounded-lg overflow-hidden">
+                      <div className="absolute inset-0 flex items-center justify-center bg-amber-950/50 rounded-md sm:rounded-lg overflow-hidden">
                         <Crown className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400/70" />
                       </div>
                     )}
-
-                    {/* Valid Move Destination Marker */}
-                    {isValid && (
-                      <div className="absolute z-10 w-3 h-3 sm:w-4 sm:h-4 rounded-full bg-amber-400/90 ring-2 ring-amber-500/40" />
+                    {scar && (
+                      <div
+                        aria-hidden
+                        className={`absolute inset-[22%] rounded-full pointer-events-none blur-[1px] ${ROLE_META[scar.role].scarClass}`}
+                        style={{ opacity: scarOpacity(moveCount - scar.moveIndex) }}
+                      />
                     )}
-
-                    {/* Piece Rendering with Framer Motion Sliding Animation */}
+                    {isValid && <div className="absolute z-10 w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-amber-400" />}
                     {piece && (
                       <motion.div
                         key={piece.id}
                         layoutId={`piece-${piece.id}`}
                         layout
-                        transition={{
-                          type: 'spring',
-                          stiffness: 240,
-                          damping: 22.5,
-                          mass: 0.7,
-                        }}
+                        transition={{ type: 'spring', stiffness: 240, damping: 22.5, mass: 0.7 }}
                         className="w-full h-full p-0.5 sm:p-1 z-20 relative"
                       >
-                        <PieceComponent
-                          type={piece.type}
-                          role={piece.role}
-                          isSelected={isSelected}
-                          isLastMoved={isLast}
-                          accentColor={accentColor}
-                          isCapturing={isCapturing}
-                        />
+                        {/*
+                          Squash lives on an inner element: animating scale on the
+                          layoutId wrapper above would fight its shared-layout transform.
+                        */}
+                        <motion.div
+                          className="w-full h-full"
+                          animate={
+                            isLandingCell && juiceEnabled
+                              ? { scaleX: [1, JUICE.squash.scaleX, 1], scaleY: [1, JUICE.squash.scaleY, 1] }
+                              : { scaleX: 1, scaleY: 1 }
+                          }
+                          transition={{ duration: JUICE.squash.durationMs / 1000, ease: 'easeOut' }}
+                        >
+                          <PieceComponent
+                            type={piece.type}
+                            role={piece.role}
+                            isSelected={isSelected}
+                            isAlert={isAlertKing}
+                          />
+                        </motion.div>
                       </motion.div>
                     )}
-
-                    {/* Ghost Piece at Previous Move Origin */}
+                    <AnimatePresence>
+                      {dyingPiece && (
+                        <motion.div
+                          key={`dying-${dyingPiece.id}`}
+                          initial={{ scale: 1, rotate: 0, opacity: 1 }}
+                          animate={{ scaleX: 1.35, scaleY: 0.35, rotate: 8, opacity: 0 }}
+                          transition={{ duration: JUICE.deathMs / 1000, ease: 'easeIn' }}
+                          className="absolute inset-0 w-full h-full p-0.5 sm:p-1 z-20 pointer-events-none"
+                        >
+                          <PieceComponent type={dyingPiece.type} role={dyingPiece.role} isCapturing />
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                     <AnimatePresence>
                       {isGhostCell && ghostPiece && !piece && (
                         <motion.div
@@ -446,20 +353,11 @@ export const Board: React.FC<BoardProps> = memo(({
                           transition={{ duration: 0.31 }}
                           className="w-full h-full p-0.5 sm:p-1 pointer-events-none z-10"
                         >
-                          <PieceComponent
-                            type={ghostPiece.type}
-                            role={ghostPiece.role}
-                            isGhost={true}
-                            accentColor={accentColor}
-                          />
+                          <PieceComponent type={ghostPiece.type} role={ghostPiece.role} isGhost />
                         </motion.div>
                       )}
                     </AnimatePresence>
-
-                    {/* Capturing Flash */}
-                    {isCapturing && (
-                      <div className="absolute inset-0 bg-rose-500/50 rounded-md z-20 pointer-events-none animate-ping" />
-                    )}
+                    {dyingPiece && <div className="absolute inset-0 bg-rose-500/45 rounded-md z-10 pointer-events-none" />}
                   </div>
                 );
               })
@@ -472,5 +370,3 @@ export const Board: React.FC<BoardProps> = memo(({
 });
 
 Board.displayName = 'Board';
-
-

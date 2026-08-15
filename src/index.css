@@ -1,7 +1,19 @@
-@import url('https://fonts.googleapis.com/css2?family=Uncial+Antiqua&display=swap');
 @import "tailwindcss";
 
+/* Self-hosted so the celtic theming holds up with no network, e.g. packaged on device. */
+@font-face {
+  font-family: 'Uncial Antiqua';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/uncial-antiqua-latin.woff2') format('woff2');
+}
+
 body {
+  margin: 0;
+  min-width: 320px;
+  background: #020617;
+  line-height: 1.5;
   -webkit-user-select: none;
   -moz-user-select: none;
   -ms-user-select: none;
@@ -12,8 +24,7 @@ body {
 
 input,
 textarea,
-[contenteditable="true"],
-.select-text {
+[contenteditable="true"] {
   -webkit-user-select: text;
   -moz-user-select: text;
   -ms-user-select: text;
@@ -25,19 +36,19 @@ textarea,
     font-family: 'Uncial Antiqua', cursive;
   }
   .bg-norse-argyle {
-    background-color: #020617; /* slate-950 */
-    background-image: 
-      repeating-linear-gradient(120deg, rgba(245,158,11,.03), rgba(245,158,11,.03) 1px, transparent 1px, transparent 60px),
-      repeating-linear-gradient(60deg, rgba(245,158,11,.03), rgba(245,158,11,.03) 1px, transparent 1px, transparent 60px),
-      linear-gradient(60deg, rgba(15,23,42,.4) 25%, transparent 25%, transparent 75%, rgba(15,23,42,.4) 75%, rgba(15,23,42,.4)),
-      linear-gradient(120deg, rgba(15,23,42,.4) 25%, transparent 25%, transparent 75%, rgba(15,23,42,.4) 75%, rgba(15,23,42,.4));
-    background-size: 70px 120px;
+    background-color: #020617;
   }
-  
+
+  .screen-safe {
+    min-height: 100dvh;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+      env(safe-area-inset-left);
+  }
+
   .celtic-knot-border {
     position: relative;
   }
-  
+
   .celtic-knot-border::before,
   .celtic-knot-border::after {
     content: '';
@@ -45,17 +56,17 @@ textarea,
     left: 0;
     right: 0;
     height: 16px;
-    background-image: var(--celtic-knot-bg, url("data:image/svg+xml,%3Csvg width='40' height='20' viewBox='0 0 40 20' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none'%3E%3Cpath d='M 0 18 C 5 18, 15 2, 20 2' stroke='%23020617' stroke-width='5'/%3E%3Cpath d='M 0 18 C 5 18, 15 2, 20 2' stroke='%230284c7' stroke-width='1.8'/%3E%3Cpath d='M 0 10 L 20 10' stroke='%23020617' stroke-width='5'/%3E%3Cpath d='M 0 10 L 20 10' stroke='%230284c7' stroke-width='1.8'/%3E%3Cpath d='M 0 2 C 5 2, 15 18, 20 18' stroke='%23020617' stroke-width='5'/%3E%3Cpath d='M 0 2 C 5 2, 15 18, 20 18' stroke='%230284c7' stroke-width='1.8'/%3E%3Cpath d='M 20 18 C 25 18, 35 2, 40 2' stroke='%23020617' stroke-width='5'/%3E%3Cpath d='M 20 18 C 25 18, 35 2, 40 2' stroke='%230284c7' stroke-width='1.8'/%3E%3Cpath d='M 20 10 L 40 10' stroke='%23020617' stroke-width='5'/%3E%3Cpath d='M 20 10 L 40 10' stroke='%230284c7' stroke-width='1.8'/%3E%3Cpath d='M 20 2 C 25 2, 35 18, 40 18' stroke='%23020617' stroke-width='5'/%3E%3Cpath d='M 20 2 C 25 2, 35 18, 40 18' stroke='%230284c7' stroke-width='1.8'/%3E%3C/g%3E%3C/svg%3E"));
+    background-image: var(--celtic-knot-bg);
     background-size: var(--celtic-knot-tile-width, 32px) 16px;
     background-repeat: repeat-x;
     pointer-events: none;
     z-index: 10;
   }
-  
+
   .celtic-knot-border::before {
     top: -8px;
   }
-  
+
   .celtic-knot-border::after {
     bottom: -8px;
     transform: rotate(180deg);
@@ -63,35 +74,23 @@ textarea,
 
   .celtic-knot-active::before,
   .celtic-knot-active::after {
-    background-image: var(--celtic-knot-bg-active, url("data:image/svg+xml,%3Csvg width='40' height='20' viewBox='0 0 40 20' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none'%3E%3Cpath d='M 0 18 C 5 18, 15 2, 20 2' stroke='%23020617' stroke-width='5'/%3E%3Cpath d='M 0 18 C 5 18, 15 2, 20 2' stroke='%23fbbf24' stroke-width='1.8'/%3E%3Cpath d='M 0 10 L 20 10' stroke='%23020617' stroke-width='5'/%3E%3Cpath d='M 0 10 L 20 10' stroke='%23fbbf24' stroke-width='1.8'/%3E%3Cpath d='M 0 2 C 5 2, 15 18, 20 18' stroke='%23020617' stroke-width='5'/%3E%3Cpath d='M 0 2 C 5 2, 15 18, 20 18' stroke='%23fbbf24' stroke-width='1.8'/%3E%3Cpath d='M 20 18 C 25 18, 35 2, 40 2' stroke='%23020617' stroke-width='5'/%3E%3Cpath d='M 20 18 C 25 18, 35 2, 40 2' stroke='%23fbbf24' stroke-width='1.8'/%3E%3Cpath d='M 20 10 L 40 10' stroke='%23020617' stroke-width='5'/%3E%3Cpath d='M 20 10 L 40 10' stroke='%23fbbf24' stroke-width='1.8'/%3E%3Cpath d='M 20 2 C 25 2, 35 18, 40 18' stroke='%23020617' stroke-width='5'/%3E%3Cpath d='M 20 2 C 25 2, 35 18, 40 18' stroke='%23fbbf24' stroke-width='1.8'/%3E%3C/g%3E%3C/svg%3E"));
+    background-image: var(--celtic-knot-bg-active);
     animation: knotScroll 2s linear infinite;
   }
 }
 
 @keyframes knotScroll {
   0% { background-position-x: 0px; }
-  100% { background-position-x: 32px; }
+  100% { background-position-x: var(--celtic-knot-tile-width, 32px); }
 }
 
-@keyframes knotSpin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-@keyframes knotDash {
-  0% { stroke-dashoffset: 0; }
-  100% { stroke-dashoffset: 100; }
-}
-
-.animate-knot-spin {
-  animation: knotSpin 10s linear infinite;
-}
-
-.animate-knot-reverse-spin {
-  animation: knotSpin 14s linear infinite reverse;
-}
-
-.animate-knot-dash {
-  stroke-dasharray: 12 6;
-  animation: knotDash 2s linear infinite;
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

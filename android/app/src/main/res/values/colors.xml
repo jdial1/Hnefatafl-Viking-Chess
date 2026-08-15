@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Mirrors the web theme tokens: bg-norse-argyle (#020617) and amber-500 (#f59e0b). -->
+    <color name="norseNight">#FF020617</color>
+
+    <color name="colorPrimary">#FF020617</color>
+    <color name="colorPrimaryDark">#FF020617</color>
+    <color name="colorAccent">#FFF59E0B</color>
+</resources>

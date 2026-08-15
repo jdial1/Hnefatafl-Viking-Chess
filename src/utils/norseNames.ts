@@ -1,3 +1,5 @@
+import { DISPLAY_NAME_MAX } from '../types';
+
 const FIRST_NAMES = [
   'Ragnar', 'Bjorn', 'Lagertha', 'Sigurd', 'Freya', 'Astrid', 'Leif',
   'Harald', 'Ivar', 'Rollo', 'Erik', 'Torstein', 'Ubbe', 'Sigrid',
@@ -11,6 +13,10 @@ const LAST_NAMES = [
   'Seaborn', 'Thunderfist', 'Winterhart', 'Bearclaw', 'Spearshaker',
   'Skullsmasher', 'Runeweaver', 'Galeborn', 'Fireheart', 'Shadowrider'
 ];
+
+export function clipDisplayName(name: string): string {
+  return name.trim().slice(0, DISPLAY_NAME_MAX);
+}
 
 export function generateRandomNorseName(existingNames: string[] = []): string {
   const existingSet = new Set(existingNames.map(n => n.toLowerCase()));

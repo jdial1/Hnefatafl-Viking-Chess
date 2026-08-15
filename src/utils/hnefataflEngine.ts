@@ -1,4 +1,12 @@
-import { BoardState, CellState, Move, Piece, Position, PlayerRole } from '../types';
+import {
+  BoardState,
+  Piece,
+  PieceCounts,
+  PlayerRole,
+  Position,
+  STARTING_SOLDIER_COUNTS,
+  VICTORY_REASON,
+} from '../types';
 
 export const BOARD_SIZE = 11;
 export const THRONE_POS: Position = { r: 5, c: 5 };
@@ -8,22 +16,24 @@ export const CORNER_POSITIONS: Position[] = [
   { r: 10, c: 0 },
   { r: 10, c: 10 },
 ];
+export const DIRECTIONS = [
+  { r: -1, c: 0 },
+  { r: 1, c: 0 },
+  { r: 0, c: -1 },
+  { r: 0, c: 1 },
+] as const;
+export const COL_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K'] as const;
 
 export function isCorner(r: number, c: number): boolean {
-  return (
-    (r === 0 && c === 0) ||
-    (r === 0 && c === 10) ||
-    (r === 10 && c === 0) ||
-    (r === 10 && c === 10)
-  );
+  return CORNER_POSITIONS.some((p) => p.r === r && p.c === c);
 }
 
 export function isThrone(r: number, c: number): boolean {
-  return r === 5 && c === 5;
+  return r === THRONE_POS.r && c === THRONE_POS.c;
 }
 
-export function isSpecialSquare(r: number, c: number): boolean {
-  return isCorner(r, c) || isThrone(r, c);
+export function toAlgebraic(r: number, c: number): string {
+  return `${COL_LETTERS[c]}${BOARD_SIZE - r}`;
 }
 
 /**
@@ -84,14 +94,7 @@ export function getValidMoves(board: BoardState, from: Position): Position[] {
 
   const validMoves: Position[] = [];
 
-  const directions = [
-    { r: -1, c: 0 }, // Up
-    { r: 1, c: 0 },  // Down
-    { r: 0, c: -1 }, // Left
-    { r: 0, c: 1 },  // Right
-  ];
-
-  for (const dir of directions) {
+  for (const dir of DIRECTIONS) {
     let nr = from.r + dir.r;
     let nc = from.c + dir.c;
 
@@ -172,14 +175,7 @@ export function executeMove(
 
   const captured: Position[] = [];
 
-  const directions = [
-    { r: -1, c: 0 },
-    { r: 1, c: 0 },
-    { r: 0, c: -1 },
-    { r: 0, c: 1 },
-  ];
-
-  for (const dir of directions) {
+  for (const dir of DIRECTIONS) {
     const adjR = to.r + dir.r;
     const adjC = to.c + dir.c;
 
@@ -224,17 +220,9 @@ export function checkKingCaptured(board: BoardState, kingPos: Position): boolean
   const { r, c } = kingPos;
   const onOrNextToThrone = Math.abs(r - 5) + Math.abs(c - 5) <= 1;
 
-  const directions = [
-    { r: -1, c: 0 },
-    { r: 1, c: 0 },
-    { r: 0, c: -1 },
-    { r: 0, c: 1 },
-  ];
-
   if (onOrNextToThrone) {
-    // Requires surrounded on all 4 sides by attackers or Throne
     let hostileCount = 0;
-    for (const dir of directions) {
+    for (const dir of DIRECTIONS) {
       const nr = r + dir.r;
       const nc = c + dir.c;
 
@@ -256,8 +244,8 @@ export function checkKingCaptured(board: BoardState, kingPos: Position): boolean
   } else {
     // Standard 2-sided capture on open board
     for (let i = 0; i < 2; i++) {
-      const d1 = directions[i];
-      const d2 = directions[i + 2]; // Up/Down pair (0&1), Left/Right pair (2&3)
+      const d1 = DIRECTIONS[i];
+      const d2 = DIRECTIONS[i + 2];
 
       const r1 = r + d1.r, c1 = c + d1.c;
       const r2 = r + d2.r, c2 = c + d2.c;
@@ -302,12 +290,12 @@ export function checkGameStatus(
 
   // If King missing -> Attackers win
   if (!kingPos) {
-    return { status: 'attackers_win', reason: 'The King has been captured!' };
+    return { status: 'attackers_win', reason: VICTORY_REASON.attackers };
   }
 
   // If King in Corner -> Defenders win
   if (isCorner(kingPos.r, kingPos.c)) {
-    return { status: 'defenders_win', reason: 'The King has escaped to safety!' };
+    return { status: 'defenders_win', reason: VICTORY_REASON.defenders };
   }
 
   // Check if current turn player has any valid moves
@@ -341,23 +329,14 @@ export function checkGameStatus(
  * Formats move into algebraic notation (e.g., F6 -> F10)
  */
 export function formatNotation(from: Position, to: Position, piece: Piece): string {
-  const cols = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K'];
-  const fromStr = `${cols[from.c]}${11 - from.r}`;
-  const toStr = `${cols[to.c]}${11 - to.r}`;
   const symbol = piece.type === 'king' ? 'K' : piece.role === 'attackers' ? 'A' : 'D';
-  return `${symbol} ${fromStr} → ${toStr}`;
+  return `${symbol} ${toAlgebraic(from.r, from.c)} → ${toAlgebraic(to.r, to.c)}`;
 }
 
 /**
  * Counts total active and captured pieces on the board
  */
-export function countPieces(board: BoardState): {
-  attackers: number;
-  defenders: number;
-  hasKing: boolean;
-  capturedAttackers: number;
-  capturedDefenders: number;
-} {
+export function countPieces(board: BoardState): PieceCounts {
   let attackers = 0;
   let defenders = 0;
   let hasKing = false;
@@ -378,8 +357,8 @@ export function countPieces(board: BoardState): {
     attackers,
     defenders,
     hasKing,
-    capturedAttackers: 24 - attackers,
-    capturedDefenders: 12 - defenders,
+    capturedAttackers: STARTING_SOLDIER_COUNTS.attackers - attackers,
+    capturedDefenders: STARTING_SOLDIER_COUNTS.defenders - defenders,
   };
 }
 

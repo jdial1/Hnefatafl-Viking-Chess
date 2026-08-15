@@ -3,6 +3,8 @@
  * Pure programmatic sound synthesis with zero external audio assets.
  */
 
+import { JUICE } from './juice';
+
 class SoundEngine {
   private ctx: AudioContext | null = null;
   private enabled: boolean = true;
@@ -32,6 +34,41 @@ class SoundEngine {
   }
 
   /**
+   * Detunes a frequency by a random amount so repeated actions never sound
+   * mechanically identical. Without this, every move plays the same waveform.
+   */
+  private vary(freq: number): number {
+    const cents = (Math.random() * 2 - 1) * JUICE.audioDetuneCents;
+    return freq * Math.pow(2, cents / 1200);
+  }
+
+  private varyGain(gain: number): number {
+    return gain * (1 + (Math.random() * 2 - 1) * JUICE.audioGainJitter);
+  }
+
+  /** Sub-bass thump layered under impacts so the player feels weight, not just hears it. */
+  private thump(startFreq: number, endFreq: number, peakGain: number, duration: number) {
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(startFreq, now);
+    osc.frequency.exponentialRampToValueAtTime(endFreq, now + duration);
+
+    gain.gain.setValueAtTime(peakGain, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + duration);
+  }
+
+  /**
    * Crisp piece selection click
    */
   public playSelect() {
@@ -43,10 +80,10 @@ class SoundEngine {
     const gain = this.ctx.createGain();
 
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(600, this.ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(850, this.ctx.currentTime + 0.04);
+    osc.frequency.setValueAtTime(this.vary(600), this.ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(this.vary(850), this.ctx.currentTime + 0.04);
 
-    gain.gain.setValueAtTime(0.12, this.ctx.currentTime);
+    gain.gain.setValueAtTime(this.varyGain(0.12), this.ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.04);
 
     osc.connect(gain);
@@ -68,10 +105,10 @@ class SoundEngine {
     const gain = this.ctx.createGain();
 
     osc.type = 'triangle';
-    osc.frequency.setValueAtTime(320, this.ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(140, this.ctx.currentTime + 0.07);
+    osc.frequency.setValueAtTime(this.vary(320), this.ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(this.vary(140), this.ctx.currentTime + 0.07);
 
-    gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+    gain.gain.setValueAtTime(this.varyGain(0.2), this.ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.07);
 
     osc.connect(gain);
@@ -79,6 +116,9 @@ class SoundEngine {
 
     osc.start();
     osc.stop(this.ctx.currentTime + 0.07);
+
+    // Wooden weight of a piece meeting the board.
+    this.thump(this.vary(120), 55, this.varyGain(0.16), 0.1);
   }
 
   /**
@@ -161,11 +201,11 @@ class SoundEngine {
 
     const filter = this.ctx.createBiquadFilter();
     filter.type = 'bandpass';
-    filter.frequency.setValueAtTime(1200, now);
+    filter.frequency.setValueAtTime(this.vary(1200), now);
     filter.Q.setValueAtTime(3, now);
 
     const gain = this.ctx.createGain();
-    gain.gain.setValueAtTime(0.35, now);
+    gain.gain.setValueAtTime(this.varyGain(0.35), now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
 
     noise.connect(filter);
@@ -178,10 +218,10 @@ class SoundEngine {
     const osc = this.ctx.createOscillator();
     const oscGain = this.ctx.createGain();
     osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(220, now);
+    osc.frequency.setValueAtTime(this.vary(220), now);
     osc.frequency.exponentialRampToValueAtTime(60, now + 0.09);
 
-    oscGain.gain.setValueAtTime(0.25, now);
+    oscGain.gain.setValueAtTime(this.varyGain(0.25), now);
     oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
 
     osc.connect(oscGain);
@@ -189,6 +229,9 @@ class SoundEngine {
 
     osc.start(now);
     osc.stop(now + 0.09);
+
+    // Sub-bass body so a kill lands in the chest, not just the ears.
+    this.thump(90, 38, 0.42, 0.26);
   }
 
   /**
@@ -219,6 +262,32 @@ class SoundEngine {
       osc.start(now + idx * 0.08);
       osc.stop(now + idx * 0.08 + 0.4);
     });
+  }
+
+  public playSignIn() {
+    if (!this.enabled) return;
+    this.initCtx();
+    if (!this.ctx) return;
+
+    const { freqStart, freqEnd, durationMs, gain: peakGain } = JUICE.signIn;
+    const duration = durationMs / 1000;
+    const now = this.ctx.currentTime;
+
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(this.vary(freqStart), now);
+    osc.frequency.exponentialRampToValueAtTime(this.vary(freqEnd), now + duration);
+
+    gain.gain.setValueAtTime(this.varyGain(peakGain), now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + duration);
   }
 
   /**
