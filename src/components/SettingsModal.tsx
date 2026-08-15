@@ -11,6 +11,8 @@ interface SettingsModalProps {
   settings: GameSettings;
   stats?: GameStats;
   isSignedIn?: boolean;
+  account?: { name: string; email: string | null; photoURL: string | null } | null;
+  username?: string;
   onUpdateSettings: (newSettings: Partial<GameSettings>) => void;
   onResetStats?: () => void;
   onSignOut?: () => void;
@@ -40,14 +42,14 @@ function SettingRow({
 }) {
   return (
     <div className="flex items-center justify-between gap-4 py-3 border-b border-slate-800">
-      <div className="flex items-center gap-2.5">
+      <div className="flex items-center gap-2.5 min-w-0">
         {icon}
-        <div>
-          <div className="font-semibold text-slate-200">{title}</div>
-          <div className="text-xs text-slate-400">{hint}</div>
+        <div className="min-w-0">
+          <div className="font-semibold text-slate-200 truncate">{title}</div>
+          <div className="text-xs text-slate-400 truncate">{hint}</div>
         </div>
       </div>
-      {children}
+      <div className="shrink-0">{children}</div>
     </div>
   );
 }
@@ -59,6 +61,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onUpdateSettings,
   onResetStats,
   isSignedIn,
+  account,
+  username,
   onSignOut,
   onClose,
 }) => {
@@ -167,15 +171,31 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           />
         </SettingRow>
 
-        {isSignedIn && onSignOut && (
+        {isSignedIn && account && (
           <SettingRow
-            icon={<LogOut className="w-4 h-4 text-rose-300 shrink-0" />}
-            title="Account"
-            hint="Sign out of Google"
+            icon={
+              account.photoURL ? (
+                <img
+                  src={account.photoURL}
+                  alt=""
+                  referrerPolicy="no-referrer"
+                  className="w-8 h-8 rounded-lg object-cover shrink-0"
+                />
+              ) : (
+                <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-300 font-semibold flex items-center justify-center shrink-0">
+                  {(username || account.name).trim().charAt(0).toUpperCase() || '?'}
+                </div>
+              )
+            }
+            title={username || account.name}
+            hint={account.email || account.name}
           >
-            <Btn onClick={onSignOut} variant="ghost" size="sm" className="text-slate-400 hover:text-rose-300">
-              Sign out
-            </Btn>
+            {onSignOut && (
+              <Btn onClick={onSignOut} variant="ghost" size="sm" className="text-slate-400 hover:text-rose-300">
+                <LogOut className="w-3.5 h-3.5" />
+                Sign out
+              </Btn>
+            )}
           </SettingRow>
         )}
 

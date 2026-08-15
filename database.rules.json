@@ -1,7 +1,7 @@
 {
   "rules": {
     "presence": {
-      ".read": "auth != null",
+      ".read": true,
       "$id": {
         ".write": "auth != null"
       }

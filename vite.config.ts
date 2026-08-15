@@ -18,7 +18,17 @@ export default defineConfig(({ mode }) => {
         ? []
         : [
             VitePWA({
-              registerType: 'autoUpdate',
+              registerType: 'prompt',
+              injectRegister: false,
+              workbox: {
+                globIgnores: ['**/version.json'],
+                runtimeCaching: [
+                  {
+                    urlPattern: /version\.json$/,
+                    handler: 'NetworkOnly',
+                  },
+                ],
+              },
               manifest: {
                 name: 'Hnefatafl',
                 short_name: 'Hnefatafl',
@@ -43,6 +53,9 @@ export default defineConfig(({ mode }) => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
+        ...(isNative
+          ? { 'virtual:pwa-register': path.resolve(__dirname, 'src/utils/pwaRegisterStub.ts') }
+          : {}),
       },
     },
     server: {

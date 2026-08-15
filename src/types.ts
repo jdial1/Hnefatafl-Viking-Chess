@@ -76,6 +76,7 @@ export interface LobbyUser {
   joinedAt: number;
   inQueue: boolean;
   roomId?: string;
+  signedIn?: boolean;
 }
 
 export interface OnlineMatchState {

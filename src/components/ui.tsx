@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shield, Swords } from '../icons';
+import { GoogleG, Shield, Swords } from '../icons';
 import { PlayerRole } from '../types';
 import { PLAYER_ROLES, ROLE_META } from '../utils/roles';
 
@@ -81,6 +81,34 @@ export function Btn({
       {...props}
     >
       {children}
+    </button>
+  );
+}
+
+export function GoogleSignInButton({
+  onClick,
+  disabled,
+  iconOnly = false,
+  className = '',
+}: {
+  onClick: () => void;
+  disabled?: boolean;
+  iconOnly?: boolean;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label="Sign in with Google"
+      title="Sign in with Google"
+      className={`inline-flex items-center justify-center min-h-10 rounded bg-white text-[#1F1F1F] border border-[#747775] font-medium text-sm leading-none hover:bg-[#F8FAFF] focus:outline-none focus:ring-2 focus:ring-[#0B57D0]/40 disabled:opacity-40 disabled:cursor-not-allowed ${
+        iconOnly ? 'px-0' : 'gap-3 px-3'
+      } ${className}`}
+    >
+      <GoogleG className="w-[18px] h-[18px] shrink-0" />
+      {!iconOnly && 'Sign in with Google'}
     </button>
   );
 }

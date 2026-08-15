@@ -42,9 +42,12 @@ import { Board } from './components/Board';
 import { VictoryModal } from './components/VictoryModal';
 import { RulesModal } from './components/RulesModal';
 import { SettingsModal } from './components/SettingsModal';
+import { PlayersModal } from './components/PlayersModal';
 import { MoveHistory } from './components/MoveHistory';
 import { HomeView } from './components/HomeView';
+import { UpdateBanner } from './components/UpdateBanner';
 import { celticKnotClass } from './components/ui';
+import { useAppUpdate } from './utils/appUpdate';
 
 const STORAGE = {
   stats: 'hnefatafl_stats_v1',
@@ -91,6 +94,7 @@ export default function App() {
   const [onlineState, setOnlineState] = useState<OnlineMatchState>(EMPTY_ONLINE);
   const [isRulesOpen, setIsRulesOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isPlayersOpen, setIsPlayersOpen] = useState(false);
   const [isSandboxMode, setIsSandboxMode] = useState(false);
   const [settings, setSettings] = useState<GameSettings>({
     soundEnabled: true,
@@ -99,6 +103,7 @@ export default function App() {
   });
   const [stats, setStats] = useState<GameStats>(() => ({ ...EMPTY_STATS, ...loadJson(STORAGE.stats, EMPTY_STATS) }));
 
+  const appUpdate = useAppUpdate();
   const pieceCounts = useMemo(() => countPieces(board), [board]);
   const isEscapeThreat = useMemo(() => isKingThreatened(board), [board]);
   const { scope: boardScope, shake } = useScreenShake(settings.juiceEnabled);
@@ -376,6 +381,19 @@ export default function App() {
     return name;
   }, [lobbyUsers, handleSetUsername]);
 
+  const handlePlayAsGuest = useCallback(async () => {
+    try {
+      const ok = await sessionService.ensureGuestSession();
+      if (!ok) {
+        soundEngine.playError();
+        alert('Guest play is unavailable.');
+      }
+    } catch (error) {
+      soundEngine.playError();
+      alert(error instanceof Error ? error.message : 'Guest play failed.');
+    }
+  }, []);
+
   const handleSignIn = useCallback(async () => {
     try {
       await sessionService.signInWithGoogle();
@@ -385,10 +403,8 @@ export default function App() {
     }
   }, []);
 
-  const handleSignOut = useCallback(async () => {
+  const handleSignOut = useCallback(() => {
     const roomId = onlineStateRef.current.roomId;
-    if (roomId) await sessionService.leaveRoom(roomId);
-    await sessionService.signOut();
     setOnlineState((prev) => ({
       ...EMPTY_ONLINE,
       username: prev.username,
@@ -396,6 +412,12 @@ export default function App() {
     }));
     setViewMode('home');
     setIsSettingsOpen(false);
+    void (async () => {
+      if (roomId) await sessionService.leaveRoom(roomId).catch(() => undefined);
+      await sessionService.signOut().catch(() => {
+        soundEngine.playError();
+      });
+    })();
   }, []);
 
   const handleJoinQueue = useCallback(() => {
@@ -449,7 +471,7 @@ export default function App() {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       const activeTag = document.activeElement?.tagName.toLowerCase();
       if (activeTag === 'input' || activeTag === 'textarea' || activeTag === 'select') return;
-      if (isRulesOpen || isSettingsOpen || gameStatus !== 'playing') return;
+      if (isRulesOpen || isSettingsOpen || isPlayersOpen || gameStatus !== 'playing') return;
       if (e.key === 'u' || e.key === 'U') handleUndo();
       else if (e.key === 'm' || e.key === 'M') setSettings((prev) => ({ ...prev, soundEnabled: !prev.soundEnabled }));
       else if (e.key === 'r' || e.key === 'R') setIsRulesOpen(true);
@@ -457,10 +479,11 @@ export default function App() {
     };
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [isRulesOpen, isSettingsOpen, gameStatus, handleUndo]);
+  }, [isRulesOpen, isSettingsOpen, isPlayersOpen, gameStatus, handleUndo]);
 
   useBackButton(() => {
     if (showMoveHistory) setShowMoveHistory(false);
+    else if (isPlayersOpen) setIsPlayersOpen(false);
     else if (isSettingsOpen) setIsSettingsOpen(false);
     else if (isRulesOpen) handleCloseRules();
     else if (gameStatus !== 'playing') setGameStatus('playing');
@@ -519,7 +542,15 @@ export default function App() {
       unsub = sessionService.subscribeAuth(async (user) => {
         if (cancelled) return;
         if (!user) {
-          await sessionService.ensureGuestSession();
+          const username = resolveDisplayName(onlineStateRef.current.username);
+          storeDisplayName(username);
+          setOnlineState((prev) => ({
+            ...prev,
+            uid: sessionService.playerId(),
+            isSignedIn: false,
+            isConnected: false,
+            username: prev.username || username,
+          }));
           return;
         }
 
@@ -562,13 +593,7 @@ export default function App() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!onlineState.isConnected) {
-      setLobbyUsers([]);
-      return;
-    }
-    return sessionService.subscribePresence(setLobbyUsers);
-  }, [onlineState.isConnected]);
+  useEffect(() => sessionService.subscribePresence(setLobbyUsers), []);
 
   useEffect(() => {
     const roomId = onlineState.roomId;
@@ -679,6 +704,14 @@ export default function App() {
   return (
     <div className="screen-safe w-full bg-norse-argyle text-slate-100 flex flex-col justify-between font-sans selection:bg-amber-500 selection:text-slate-950">
       <div className="w-full px-4 pt-3 sm:pt-4">
+        {appUpdate.available && (
+          <UpdateBanner
+            onUpdate={() => {
+              soundEngine.playSignIn();
+              appUpdate.apply();
+            }}
+          />
+        )}
         <Header
           canUndo={historyStack.length > 0}
           showMoveHistory={showMoveHistory}
@@ -692,6 +725,8 @@ export default function App() {
           onOpenSettings={() => setIsSettingsOpen(true)}
           onGoHome={handleGoHome}
           onRandomizeName={handleRandomizeName}
+          onOpenPlayers={() => setIsPlayersOpen(true)}
+          photoURL={onlineState.isSignedIn ? sessionService.accountInfo()?.photoURL : null}
         />
       </div>
 
@@ -703,6 +738,7 @@ export default function App() {
             onLeaveQueue={handleLeaveQueue}
             onLeaveRoom={handleLeaveRoom}
             onEnterBoard={() => setViewMode('game')}
+            onPlayAsGuest={() => void handlePlayAsGuest()}
             onSignIn={() => void handleSignIn()}
           />
         ) : (
@@ -749,6 +785,7 @@ export default function App() {
       </main>
 
       <MoveHistory isOpen={showMoveHistory} moves={moveHistory} onClose={() => setShowMoveHistory(false)} />
+      <PlayersModal isOpen={isPlayersOpen} users={lobbyUsers} onClose={() => setIsPlayersOpen(false)} />
       <VictoryModal
         status={gameStatus}
         reason={statusReason}
@@ -764,7 +801,9 @@ export default function App() {
         onUpdateSettings={(newS) => setSettings((prev) => ({ ...prev, ...newS }))}
         onResetStats={handleResetStats}
         isSignedIn={onlineState.isSignedIn}
-        onSignOut={() => void handleSignOut()}
+        account={onlineState.isSignedIn ? sessionService.accountInfo() : null}
+        username={onlineState.username}
+        onSignOut={onlineState.isSignedIn ? handleSignOut : undefined}
         onClose={() => setIsSettingsOpen(false)}
       />
     </div>

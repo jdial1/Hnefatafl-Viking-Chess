@@ -41,6 +41,7 @@ const DEVICE_KEY = 'hnefatafl_device_id';
 const NAME_KEY = 'hnefatafl_display_name';
 const POPUP_FALLBACK = new Set(['auth/popup-blocked', 'auth/operation-not-supported-in-this-environment']);
 const LINK_TAKEN = new Set(['auth/credential-already-in-use', 'auth/email-already-in-use']);
+const AUTH_DISABLED = new Set(['auth/admin-restricted-operation', 'auth/operation-not-allowed']);
 
 export function getDeviceId(): string {
   let id = localStorage.getItem(DEVICE_KEY);
@@ -153,9 +154,25 @@ class SessionService {
     return Boolean(auth.currentUser && !auth.currentUser.isAnonymous);
   }
 
-  public async ensureGuestSession(): Promise<void> {
-    if (auth.currentUser) return;
-    await signInAnonymously(auth);
+  public accountInfo(): { name: string; email: string | null; photoURL: string | null } | null {
+    const user = auth.currentUser;
+    if (!user || user.isAnonymous) return null;
+    return {
+      name: user.displayName || getStoredDisplayName(),
+      email: user.email,
+      photoURL: user.photoURL,
+    };
+  }
+
+  public async ensureGuestSession(): Promise<boolean> {
+    if (auth.currentUser) return true;
+    try {
+      await signInAnonymously(auth);
+      return true;
+    } catch (error) {
+      if (AUTH_DISABLED.has(authCode(error))) return false;
+      throw error;
+    }
   }
 
   public subscribeAuth(onUser: (user: User | null) => void): Unsubscribe {
@@ -164,40 +181,48 @@ class SessionService {
 
   public completeRedirectSignIn(): Promise<void> {
     if (!redirectSignIn) {
-      redirectSignIn = getRedirectResult(auth, browserPopupRedirectResolver).then((result) => {
-        if (result?.user) soundEngine.playSignIn();
-      });
+      redirectSignIn = getRedirectResult(auth, browserPopupRedirectResolver)
+        .then((result) => {
+          if (result?.user) soundEngine.playSignIn();
+        })
+        .catch(() => undefined);
     }
     return redirectSignIn;
   }
 
   public async signInWithGoogle(): Promise<void> {
-    await this.ensureGuestSession();
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
 
-    if (Capacitor.isNativePlatform()) {
-      const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication');
-      const result = await FirebaseAuthentication.signInWithGoogle({ useCredentialManager: false });
-      const idToken = result.credential?.idToken;
-      if (!idToken) throw new Error('Google sign-in failed.');
-      await applyGoogleCredential(GoogleAuthProvider.credential(idToken));
-    } else if (!(await signInGoogleWeb(provider))) {
-      return;
+    try {
+      if (Capacitor.isNativePlatform()) {
+        const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication');
+        const result = await FirebaseAuthentication.signInWithGoogle({ useCredentialManager: false });
+        const idToken = result.credential?.idToken;
+        if (!idToken) throw new Error('Google sign-in failed.');
+        await applyGoogleCredential(GoogleAuthProvider.credential(idToken));
+      } else if (!(await signInGoogleWeb(provider))) {
+        return;
+      }
+    } catch (error) {
+      if (AUTH_DISABLED.has(authCode(error))) {
+        throw new Error('Sign-in is disabled for this project.');
+      }
+      throw error;
     }
     soundEngine.playSignIn();
   }
 
   public async signOut(): Promise<void> {
-    await this.leaveQueue();
-    if (this.queuedRoomId) await this.leaveRoom(this.queuedRoomId);
-    await this.goOffline();
     if (Capacitor.isNativePlatform()) {
-      const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication');
-      await FirebaseAuthentication.signOut();
+      void import('@capacitor-firebase/authentication')
+        .then(({ FirebaseAuthentication }) => FirebaseAuthentication.signOut())
+        .catch(() => undefined);
     }
     await firebaseSignOut(auth);
-    await this.ensureGuestSession();
+    await this.leaveQueue().catch(() => undefined);
+    if (this.queuedRoomId) await this.leaveRoom(this.queuedRoomId).catch(() => undefined);
+    await this.goOffline().catch(() => undefined);
   }
 
   public async goOnline(displayName: string): Promise<void> {
@@ -207,16 +232,20 @@ class SessionService {
     this.presenceUnsub?.();
 
     const presenceRef = ref(rtdb, `presence/${playerId}`);
-    this.presenceUnsub = onValue(ref(rtdb, '.info/connected'), async (snap) => {
-      if (snap.val() !== true) return;
+    const publish = async () => {
       await onDisconnect(presenceRef).remove();
-      await set(presenceRef, {
+      await update(presenceRef, {
         id: playerId,
         username: this.displayName,
         joinedAt: Date.now(),
-        inQueue: false,
-        roomId: null,
+        signedIn: this.isGoogleUser(),
       });
+    };
+
+    await publish();
+    this.presenceUnsub = onValue(ref(rtdb, '.info/connected'), async (snap) => {
+      if (snap.val() !== true) return;
+      await publish();
     });
   }
 
@@ -235,15 +264,25 @@ class SessionService {
   }
 
   public subscribePresence(onUsers: (users: LobbyUser[]) => void): Unsubscribe {
-    return onValue(ref(rtdb, 'presence'), (snap) => {
-      const value = (snap.val() ?? {}) as Record<string, Omit<LobbyUser, 'id'>>;
-      onUsers(
-        Object.entries(value).map(([deviceId, user]) => ({
-          ...user,
-          id: deviceId,
-        }))
-      );
-    });
+    return onValue(
+      ref(rtdb, 'presence'),
+      (snap) => {
+        const value = snap.val();
+        if (!value || typeof value !== 'object') {
+          onUsers([]);
+          return;
+        }
+        onUsers(
+          Object.entries(value as Record<string, Omit<LobbyUser, 'id'>>)
+            .filter(([, user]) => user && typeof user === 'object')
+            .map(([deviceId, user]) => ({
+              ...user,
+              id: deviceId,
+            }))
+        );
+      },
+      () => onUsers([])
+    );
   }
 
   public subscribeRoom(

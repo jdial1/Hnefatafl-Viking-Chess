@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { RefreshCw, Zap } from '../icons';
 import { OnlineMatchState } from '../types';
 import { ROLE_META } from '../utils/roles';
-import { Btn, RoleSummary, celticKnotClass } from './ui';
+import { Btn, GoogleSignInButton, RoleSummary, celticKnotClass } from './ui';
 
 const SEARCH_FLAVOR = [
   'Watching the shoreline for sails',
@@ -36,6 +36,7 @@ interface HomeViewProps {
   onLeaveQueue: () => void;
   onLeaveRoom: () => void;
   onEnterBoard: () => void;
+  onPlayAsGuest: () => void;
   onSignIn: () => void;
 }
 
@@ -45,6 +46,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   onLeaveQueue,
   onLeaveRoom,
   onEnterBoard,
+  onPlayAsGuest,
   onSignIn,
 }) => {
   const [flavorIndex, setFlavorIndex] = useState(0);
@@ -102,21 +104,27 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 Tap to cancel
               </span>
             </Btn>
+          ) : onlineState.isConnected ? (
+            <div className={onlineState.isSignedIn ? '' : 'grid grid-cols-5 gap-2'}>
+              <Btn
+                onClick={onJoinQueue}
+                variant="primary"
+                className={`min-h-14 text-sm sm:text-base font-bold ${onlineState.isSignedIn ? 'w-full' : 'col-span-4 w-full'}`}
+              >
+                <Zap className="w-5 h-5 fill-current" />
+                Play Online Match
+              </Btn>
+              {!onlineState.isSignedIn && (
+                <GoogleSignInButton onClick={onSignIn} iconOnly className="col-span-1 w-full min-h-14" />
+              )}
+            </div>
           ) : (
-            <Btn
-              onClick={onJoinQueue}
-              disabled={!onlineState.isConnected}
-              variant="primary"
-              className="w-full min-h-14 text-sm sm:text-base font-bold"
-            >
-              <Zap className="w-5 h-5 fill-current" />
-              Play Online Match
-            </Btn>
-          )}
-          {!onlineState.isSignedIn && (
-            <Btn onClick={onSignIn} variant="ghost" className="w-full text-slate-400">
-              Sign in with Google
-            </Btn>
+            <div className="grid grid-cols-2 gap-2">
+              <Btn onClick={onPlayAsGuest} variant="primary" className="w-full min-h-14 text-sm sm:text-base font-bold">
+                Play as Guest
+              </Btn>
+              <GoogleSignInButton onClick={onSignIn} className="w-full min-h-14" />
+            </div>
           )}
         </div>
       </section>

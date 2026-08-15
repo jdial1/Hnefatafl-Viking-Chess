@@ -1,5 +1,5 @@
 import React from 'react';
-import { Crown, History, RotateCcw, BookOpen, Settings, Users, RefreshCw, Flask } from '../icons';
+import { Crown, History, RotateCcw, BookOpen, Settings, Users, RefreshCw, Flask, GoogleG } from '../icons';
 import { OnlineMatchState } from '../types';
 import { Btn, Chip } from './ui';
 
@@ -16,19 +16,36 @@ interface HeaderProps {
   onOpenSettings: () => void;
   onGoHome?: () => void;
   onRandomizeName?: () => void;
+  onOpenPlayers?: () => void;
+  photoURL?: string | null;
 }
 
 function UsernameChip({
   name,
+  photoURL,
+  signedIn,
   onRandomize,
   className = '',
 }: {
   name: string;
+  photoURL?: string | null;
+  signedIn?: boolean;
   onRandomize?: () => void;
   className?: string;
 }) {
   return (
     <Chip title={`Player Name: ${name}`} className={className}>
+      {signedIn &&
+        (photoURL ? (
+          <img
+            src={photoURL}
+            alt=""
+            referrerPolicy="no-referrer"
+            className="w-5 h-5 rounded-md object-cover shrink-0"
+          />
+        ) : (
+          <GoogleG className="w-4 h-4 shrink-0" />
+        ))}
       <span className="text-amber-300 font-semibold truncate font-celtic">{name}</span>
       {onRandomize && (
         <Btn
@@ -59,8 +76,11 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenSettings,
   onGoHome,
   onRandomizeName,
+  onOpenPlayers,
+  photoURL,
 }) => {
   const isGame = viewMode === 'game';
+  const signedIn = onlineState.isSignedIn;
 
   return (
     <header className="w-full max-w-4xl mx-auto px-3 py-2.5 bg-slate-900 border border-slate-800 rounded-xl flex flex-col gap-2">
@@ -96,17 +116,24 @@ export const Header: React.FC<HeaderProps> = ({
           {onlineState.username && (
             <UsernameChip
               name={onlineState.username}
+              photoURL={photoURL}
+              signedIn={signedIn}
               onRandomize={onRandomizeName}
               className="hidden sm:flex sm:px-2.5"
             />
           )}
-          <Chip
+          <button
+            type="button"
+            onClick={onOpenPlayers}
             title="Online Players Connected"
-            className="font-mono font-medium text-slate-200 shrink-0 sm:px-2.5"
+            aria-label="Online Players Connected"
+            className="rounded-lg"
           >
-            <Users className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-            <span>{onlineCount}</span>
-          </Chip>
+            <Chip className="font-mono font-medium text-slate-200 shrink-0 sm:px-2.5 hover:border-slate-600">
+              <Users className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <span>{onlineCount}</span>
+            </Chip>
+          </button>
         </div>
       </div>
 
@@ -132,6 +159,8 @@ export const Header: React.FC<HeaderProps> = ({
           {onlineState.username && (
             <UsernameChip
               name={onlineState.username}
+              photoURL={photoURL}
+              signedIn={signedIn}
               onRandomize={onRandomizeName}
               className={isGame ? 'hidden' : 'sm:hidden flex-1 mr-1'}
             />
