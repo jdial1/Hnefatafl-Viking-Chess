@@ -3,7 +3,10 @@ import {
   GoogleAuthProvider,
   browserPopupRedirectResolver,
   getRedirectResult,
+  linkWithCredential,
+  linkWithPopup,
   onAuthStateChanged,
+  signInAnonymously,
   signInWithCredential,
   signInWithPopup,
   signInWithRedirect,
@@ -31,30 +34,103 @@ import {
   RoomResult,
 } from '../types';
 import { auth, rtdb } from './firebase';
-import { clipDisplayName } from './norseNames';
+import { clipDisplayName, generateRandomNorseName } from './norseNames';
 import { soundEngine } from './soundEngine';
 
-function requireUid(): string {
-  const uid = auth.currentUser?.uid;
-  if (!uid) throw new Error('Sign in required.');
-  return uid;
+const DEVICE_KEY = 'hnefatafl_device_id';
+const NAME_KEY = 'hnefatafl_display_name';
+const POPUP_FALLBACK = new Set(['auth/popup-blocked', 'auth/operation-not-supported-in-this-environment']);
+const LINK_TAKEN = new Set(['auth/credential-already-in-use', 'auth/email-already-in-use']);
+
+export function getDeviceId(): string {
+  let id = localStorage.getItem(DEVICE_KEY);
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem(DEVICE_KEY, id);
+  }
+  return id;
 }
 
-function opponentOf(room: LiveRoom, uid: string): { id: string; name: string } | null {
-  const entry = Object.entries(room.players ?? {}).find(([id]) => id !== uid);
+export function getStoredDisplayName(): string {
+  return localStorage.getItem(NAME_KEY) ?? '';
+}
+
+export function storeDisplayName(name: string): void {
+  localStorage.setItem(NAME_KEY, clipDisplayName(name));
+}
+
+export function resolveDisplayName(current?: string): string {
+  return current || getStoredDisplayName() || generateRandomNorseName();
+}
+
+function requirePlayerId(): string {
+  if (!auth.currentUser) throw new Error('Session is not ready.');
+  return getDeviceId();
+}
+
+function authCode(error: unknown): string {
+  return typeof error === 'object' && error && 'code' in error ? String(error.code) : '';
+}
+
+export function opponentOf(room: LiveRoom, playerId: string): { id: string; name: string } | null {
+  const entry = Object.entries(room.players ?? {}).find(([id]) => id !== playerId);
   return entry ? { id: entry[0], name: entry[1].displayName } : null;
 }
 
-function toMatch(roomId: string, room: LiveRoom, uid: string): MatchFound {
-  const opponent = opponentOf(room, uid);
+export function roomPlayers(room: LiveRoom): Record<string, { role: PlayerRole; displayName: string }> {
+  return Object.fromEntries(
+    Object.entries(room.players ?? {}).map(([id, player]) => [
+      id,
+      { role: room.roles?.[id] ?? 'defenders', displayName: player.displayName },
+    ])
+  );
+}
+
+function toMatch(roomId: string, room: LiveRoom, playerId: string): MatchFound {
+  const opponent = opponentOf(room, playerId);
   return {
     roomId,
-    role: room.roles?.[uid] ?? 'defenders',
-    isMaster: room.hostUid === uid,
+    role: room.roles?.[playerId] ?? 'defenders',
+    isMaster: room.hostUid === playerId,
     opponentId: opponent?.id ?? null,
     opponentName: opponent?.name ?? null,
     createdAt: room.createdAt,
   };
+}
+
+async function applyGoogleCredential(credential: ReturnType<typeof GoogleAuthProvider.credential>): Promise<void> {
+  if (auth.currentUser?.isAnonymous) {
+    try {
+      await linkWithCredential(auth.currentUser, credential);
+      return;
+    } catch (error) {
+      if (!LINK_TAKEN.has(authCode(error))) throw error;
+    }
+  }
+  await signInWithCredential(auth, credential);
+}
+
+async function signInGoogleWeb(provider: GoogleAuthProvider): Promise<boolean> {
+  const popup = () =>
+    auth.currentUser?.isAnonymous
+      ? linkWithPopup(auth.currentUser, provider, browserPopupRedirectResolver)
+      : signInWithPopup(auth, provider, browserPopupRedirectResolver);
+
+  try {
+    await popup();
+    return true;
+  } catch (error) {
+    const code = authCode(error);
+    if (LINK_TAKEN.has(code)) {
+      await signInWithPopup(auth, provider, browserPopupRedirectResolver);
+      return true;
+    }
+    if (POPUP_FALLBACK.has(code)) {
+      await signInWithRedirect(auth, provider, browserPopupRedirectResolver);
+      return false;
+    }
+    throw error;
+  }
 }
 
 let redirectSignIn: Promise<void> | null = null;
@@ -67,6 +143,19 @@ class SessionService {
 
   public currentUid(): string | null {
     return auth.currentUser?.uid ?? null;
+  }
+
+  public playerId(): string {
+    return getDeviceId();
+  }
+
+  public isGoogleUser(): boolean {
+    return Boolean(auth.currentUser && !auth.currentUser.isAnonymous);
+  }
+
+  public async ensureGuestSession(): Promise<void> {
+    if (auth.currentUser) return;
+    await signInAnonymously(auth);
   }
 
   public subscribeAuth(onUser: (user: User | null) => void): Unsubscribe {
@@ -83,25 +172,18 @@ class SessionService {
   }
 
   public async signInWithGoogle(): Promise<void> {
+    await this.ensureGuestSession();
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+
     if (Capacitor.isNativePlatform()) {
       const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication');
-      const result = await FirebaseAuthentication.signInWithGoogle();
+      const result = await FirebaseAuthentication.signInWithGoogle({ useCredentialManager: false });
       const idToken = result.credential?.idToken;
       if (!idToken) throw new Error('Google sign-in failed.');
-      await signInWithCredential(auth, GoogleAuthProvider.credential(idToken));
-    } else {
-      const provider = new GoogleAuthProvider();
-      provider.setCustomParameters({ prompt: 'select_account' });
-      try {
-        await signInWithPopup(auth, provider, browserPopupRedirectResolver);
-      } catch (error) {
-        const code = typeof error === 'object' && error && 'code' in error ? String(error.code) : '';
-        if (code === 'auth/popup-blocked' || code === 'auth/operation-not-supported-in-this-environment') {
-          await signInWithRedirect(auth, provider, browserPopupRedirectResolver);
-          return;
-        }
-        throw error;
-      }
+      await applyGoogleCredential(GoogleAuthProvider.credential(idToken));
+    } else if (!(await signInGoogleWeb(provider))) {
+      return;
     }
     soundEngine.playSignIn();
   }
@@ -115,21 +197,21 @@ class SessionService {
       await FirebaseAuthentication.signOut();
     }
     await firebaseSignOut(auth);
+    await this.ensureGuestSession();
   }
 
   public async goOnline(displayName: string): Promise<void> {
-    const uid = requireUid();
+    const playerId = requirePlayerId();
     this.displayName = clipDisplayName(displayName);
+    storeDisplayName(this.displayName);
     this.presenceUnsub?.();
 
-    const presenceRef = ref(rtdb, `presence/${uid}`);
-    const connectedRef = ref(rtdb, '.info/connected');
-
-    this.presenceUnsub = onValue(connectedRef, async (snap) => {
+    const presenceRef = ref(rtdb, `presence/${playerId}`);
+    this.presenceUnsub = onValue(ref(rtdb, '.info/connected'), async (snap) => {
       if (snap.val() !== true) return;
       await onDisconnect(presenceRef).remove();
       await set(presenceRef, {
-        id: uid,
+        id: playerId,
         username: this.displayName,
         joinedAt: Date.now(),
         inQueue: false,
@@ -141,23 +223,26 @@ class SessionService {
   public async goOffline(): Promise<void> {
     this.presenceUnsub?.();
     this.presenceUnsub = null;
-    const uid = auth.currentUser?.uid;
-    if (!uid) return;
-    await remove(ref(rtdb, `presence/${uid}`));
+    await remove(ref(rtdb, `presence/${getDeviceId()}`));
   }
 
   public async setDisplayName(name: string): Promise<string> {
     const clipped = clipDisplayName(name);
     this.displayName = clipped;
-    const uid = auth.currentUser?.uid;
-    if (uid) await update(ref(rtdb, `presence/${uid}`), { username: clipped });
+    storeDisplayName(clipped);
+    await this.patchPresence({ username: clipped });
     return clipped;
   }
 
   public subscribePresence(onUsers: (users: LobbyUser[]) => void): Unsubscribe {
     return onValue(ref(rtdb, 'presence'), (snap) => {
-      const value = (snap.val() ?? {}) as Record<string, LobbyUser>;
-      onUsers(Object.values(value));
+      const value = (snap.val() ?? {}) as Record<string, Omit<LobbyUser, 'id'>>;
+      onUsers(
+        Object.entries(value).map(([deviceId, user]) => ({
+          ...user,
+          id: deviceId,
+        }))
+      );
     });
   }
 
@@ -177,15 +262,19 @@ class SessionService {
     });
   }
 
-  public async createRoom(displayName: string): Promise<MatchFound> {
-    const uid = requireUid();
-    const roomId = `room_${uid.slice(0, 5)}_${Date.now()}`;
+  private async patchPresence(patch: Record<string, unknown>, playerId = getDeviceId()): Promise<void> {
+    await update(ref(rtdb, `presence/${playerId}`), patch);
+  }
+
+  private async createRoom(displayName: string): Promise<MatchFound> {
+    const playerId = requirePlayerId();
+    const roomId = `room_${playerId.slice(0, 8)}_${Date.now()}`;
     const room: LiveRoom = {
       status: 'waiting',
-      hostUid: uid,
+      hostUid: playerId,
       createdAt: Date.now(),
-      players: { [uid]: { displayName: clipDisplayName(displayName), joinedAt: Date.now() } },
-      roles: { [uid]: 'defenders' },
+      players: { [playerId]: { displayName: clipDisplayName(displayName), joinedAt: Date.now() } },
+      roles: { [playerId]: 'defenders' },
       lastMove: null,
       lastMoveBy: null,
       lastMoveAt: null,
@@ -195,26 +284,26 @@ class SessionService {
     const roomRef = ref(rtdb, `rooms/${roomId}`);
     await set(roomRef, room);
     await onDisconnect(roomRef).remove();
-    await update(ref(rtdb, `presence/${uid}`), { roomId, inQueue: false });
-    return toMatch(roomId, room, uid);
+    await this.patchPresence({ roomId, inQueue: false }, playerId);
+    return toMatch(roomId, room, playerId);
   }
 
-  public async joinRoom(roomId: string, displayName: string): Promise<MatchFound> {
-    const uid = requireUid();
+  private async joinRoom(roomId: string, displayName: string): Promise<MatchFound> {
+    const playerId = requirePlayerId();
     const roomRef = ref(rtdb, `rooms/${roomId}`);
     const result = await runTransaction(roomRef, (room: LiveRoom | null) => {
       if (!room) return room;
       const players = room.players ?? {};
-      if (players[uid]) return room;
+      if (players[playerId]) return room;
       if (room.status !== 'waiting' || Object.keys(players).length >= 2) return;
       return {
         ...room,
         status: 'playing',
         players: {
           ...players,
-          [uid]: { displayName: clipDisplayName(displayName), joinedAt: Date.now() },
+          [playerId]: { displayName: clipDisplayName(displayName), joinedAt: Date.now() },
         },
-        roles: { ...room.roles, [uid]: 'attackers' as PlayerRole },
+        roles: { ...room.roles, [playerId]: 'attackers' as PlayerRole },
       };
     });
 
@@ -223,51 +312,46 @@ class SessionService {
     }
 
     const room = result.snapshot.val() as LiveRoom;
-    await update(ref(rtdb, `presence/${uid}`), { roomId, inQueue: false });
-    return toMatch(roomId, room, uid);
+    await this.patchPresence({ roomId, inQueue: false }, playerId);
+    return toMatch(roomId, room, playerId);
   }
 
   public async leaveRoom(roomId: string): Promise<void> {
-    const uid = auth.currentUser?.uid;
-    if (!uid) return;
-    const roomRef = ref(rtdb, `rooms/${roomId}`);
-    await runTransaction(roomRef, (room: LiveRoom | null) => {
+    const playerId = getDeviceId();
+    await runTransaction(ref(rtdb, `rooms/${roomId}`), (room: LiveRoom | null) => {
       if (!room) return room;
       const players = { ...room.players };
-      delete players[uid];
+      delete players[playerId];
       if (Object.keys(players).length === 0 || room.status === 'waiting') return null;
       const roles = { ...room.roles };
-      delete roles[uid];
+      delete roles[playerId];
       return { ...room, players, roles };
     });
-    await update(ref(rtdb, `presence/${uid}`), { roomId: null, inQueue: false });
+    await this.patchPresence({ roomId: null, inQueue: false }, playerId);
   }
 
   public async joinQueue(displayName: string, onMatch: (match: MatchFound) => void): Promise<void> {
-    const uid = requireUid();
+    const playerId = requirePlayerId();
     await this.leaveQueue();
-    await update(ref(rtdb, `presence/${uid}`), { inQueue: true });
+    await this.patchPresence({ inQueue: true }, playerId);
 
     const queueSnap = await get(ref(rtdb, 'queue'));
     const queue = (queueSnap.val() ?? {}) as Record<string, { joinedAt: number; roomId: string }>;
-    const waiting = Object.entries(queue).find(([id]) => id !== uid);
+    const waiting = Object.entries(queue).find(([id]) => id !== playerId);
 
     if (waiting) {
       try {
-        const match = await this.joinRoom(waiting[1].roomId, displayName);
-        onMatch(match);
+        onMatch(await this.joinRoom(waiting[1].roomId, displayName));
         return;
-      } catch {
-        /* host queue entry is theirs to clear */
-      }
+      } catch {}
     }
 
     const created = await this.createRoom(displayName);
     this.queuedRoomId = created.roomId;
-    const queueRef = ref(rtdb, `queue/${uid}`);
+    const queueRef = ref(rtdb, `queue/${playerId}`);
     await onDisconnect(queueRef).remove();
     await set(queueRef, { joinedAt: Date.now(), roomId: created.roomId });
-    await update(ref(rtdb, `presence/${uid}`), { roomId: null, inQueue: true });
+    await this.patchPresence({ roomId: null, inQueue: true }, playerId);
 
     this.queuedRoomUnsub = this.subscribeRoom(created.roomId, {
       onUpdate: (room) => {
@@ -275,8 +359,8 @@ class SessionService {
         this.persistRoom(created.roomId);
         this.clearQueueWatch();
         remove(queueRef).catch(() => undefined);
-        update(ref(rtdb, `presence/${uid}`), { roomId: created.roomId, inQueue: false }).catch(() => undefined);
-        onMatch(toMatch(created.roomId, room, uid));
+        this.patchPresence({ roomId: created.roomId, inQueue: false }, playerId).catch(() => undefined);
+        onMatch(toMatch(created.roomId, room, playerId));
       },
       onGone: () => {
         this.clearQueueWatch();
@@ -285,12 +369,11 @@ class SessionService {
   }
 
   public async leaveQueue(): Promise<void> {
-    const uid = auth.currentUser?.uid;
     const queuedRoomId = this.queuedRoomId;
     this.clearQueueWatch();
-    if (!uid) return;
-    await remove(ref(rtdb, `queue/${uid}`));
-    await update(ref(rtdb, `presence/${uid}`), { inQueue: false });
+    const playerId = getDeviceId();
+    await remove(ref(rtdb, `queue/${playerId}`));
+    await this.patchPresence({ inQueue: false }, playerId);
     if (queuedRoomId) await this.leaveRoom(queuedRoomId);
   }
 
@@ -299,10 +382,10 @@ class SessionService {
   }
 
   public async sendMove(roomId: string, payload: MovePayload, board: BoardState, currentTurn: PlayerRole): Promise<void> {
-    const uid = requireUid();
+    const playerId = requirePlayerId();
     await update(ref(rtdb, `rooms/${roomId}`), {
       lastMove: payload,
-      lastMoveBy: uid,
+      lastMoveBy: playerId,
       lastMoveAt: Date.now(),
       state: { board, currentTurn },
     });

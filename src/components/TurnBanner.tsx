@@ -12,7 +12,6 @@ interface TurnBannerProps {
   isSandboxMode?: boolean;
   pieceCounts?: PieceCounts;
   isEscapeThreat?: boolean;
-  embedded?: boolean;
   onResetBoard?: () => void;
   onOpenHistory: () => void;
 }
@@ -36,7 +35,6 @@ export const TurnBanner: React.FC<TurnBannerProps> = ({
   isSandboxMode,
   pieceCounts,
   isEscapeThreat = false,
-  embedded = false,
   onResetBoard,
   onOpenHistory,
 }) => {
@@ -47,15 +45,11 @@ export const TurnBanner: React.FC<TurnBannerProps> = ({
   const turnMeta = ROLE_META[currentTurn];
 
   return (
-    <div className={embedded ? '' : 'w-full max-w-4xl mx-auto px-4 sm:px-0 mb-1'}>
+    <div className="w-full max-w-4xl mx-auto px-4 sm:px-0 mb-1">
       <div
-        className={
-          embedded
-            ? `border-t overflow-hidden ${isSandboxMode || isMyTurn ? 'border-slate-700' : 'border-slate-800'}`
-            : `w-full rounded-xl bg-slate-900 border overflow-hidden ${
-                isSandboxMode || isMyTurn ? 'border-slate-700' : 'border-slate-800'
-              }`
-        }
+        className={`w-full rounded-xl bg-slate-900 border overflow-hidden ${
+          isSandboxMode || isMyTurn ? 'border-slate-700' : 'border-slate-800'
+        }`}
       >
         <div className="px-2 sm:px-3 py-1.5 sm:py-2 flex items-center justify-between gap-1.5 sm:gap-2">
           <div className="flex items-center gap-1.5 shrink-0">

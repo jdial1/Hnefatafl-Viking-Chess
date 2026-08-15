@@ -1,6 +1,7 @@
 import React from 'react';
 import { Shield, Swords } from '../icons';
 import { PlayerRole } from '../types';
+import { PLAYER_ROLES, ROLE_META } from '../utils/roles';
 
 type Tone = 'default' | 'muted' | 'amber';
 type BtnVariant = 'primary' | 'secondary' | 'ghost' | 'amber' | 'success';
@@ -27,6 +28,10 @@ const BTN_SIZE: Record<BtnSize, string> = {
   lg: 'px-5 py-3 text-sm',
 };
 
+export function celticKnotClass(active = false, className = '') {
+  return `relative celtic-knot-border ${active ? 'celtic-knot-active' : ''} ${className}`.trim();
+}
+
 export function Panel({
   tone = 'default',
   className = '',
@@ -37,6 +42,25 @@ export function Panel({
   children: React.ReactNode;
 }) {
   return <div className={`rounded-xl border p-3.5 ${TONE[tone]} ${className}`}>{children}</div>;
+}
+
+export function Chip({
+  title,
+  className = '',
+  children,
+}: {
+  title?: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      title={title}
+      className={`flex items-center gap-1.5 bg-slate-950 px-2 py-1 rounded-lg border border-slate-800 text-xs min-w-0 ${className}`}
+    >
+      {children}
+    </div>
+  );
 }
 
 export function Btn({
@@ -94,6 +118,22 @@ export function Metric({
   );
 }
 
+export function MetricRow({
+  items,
+  className = '',
+}: {
+  items: { label: string; value: React.ReactNode; valueClassName?: string }[];
+  className?: string;
+}) {
+  return (
+    <div className={`grid grid-cols-3 divide-x divide-slate-800 py-3 ${className}`}>
+      {items.map((metric) => (
+        <Metric key={metric.label} {...metric} className="px-2 sm:px-3" />
+      ))}
+    </div>
+  );
+}
+
 export function SectionTitle({
   icon: Icon,
   children,
@@ -124,4 +164,37 @@ export function Kbd({ children }: { children: React.ReactNode }) {
 export function RoleIcon({ role, className = '' }: { role: PlayerRole; className?: string }) {
   if (role === 'defenders') return <Shield className={className} />;
   return <Swords className={`${className} rotate-90`} />;
+}
+
+export function RoleSummary({
+  field,
+  className = '',
+}: {
+  field: 'goal' | 'rules';
+  className?: string;
+}) {
+  return (
+    <div className={className}>
+      {PLAYER_ROLES.map((role) => {
+        const meta = ROLE_META[role];
+        return (
+          <div key={role} className="flex items-start gap-3 min-w-0">
+            <RoleIcon role={role} className={`w-5 h-5 ${meta.colorClass} shrink-0 mt-0.5`} />
+            {field === 'goal' ? (
+              <div className="min-w-0">
+                <span className="font-semibold text-slate-100 block">
+                  {meta.plural} ({meta.force})
+                </span>
+                <span className="text-slate-300 text-sm block">{meta.goal}</span>
+              </div>
+            ) : (
+              <span>
+                <strong className="text-slate-100">{meta.plural} ({meta.force}):</strong> {meta.rules}
+              </span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
 }

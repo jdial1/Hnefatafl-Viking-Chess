@@ -3,12 +3,12 @@ import { motion } from 'motion/react';
 import {
   BoardState,
   DyingPiece,
+  CLEAR_MATCH,
   EMPTY_ONLINE,
   EMPTY_STATS,
   GameSettings,
   GameStats,
   GameStatus,
-  LiveRoom,
   LobbyUser,
   MatchFound,
   Move,
@@ -31,7 +31,7 @@ import {
 import { JUICE, hitStopDuration, shakeAmplitude, useScreenShake } from './utils/juice';
 import { createMoveRecord } from './utils/sagaVoice';
 import { soundEngine } from './utils/soundEngine';
-import { sessionService } from './utils/sessionService';
+import { opponentOf, resolveDisplayName, roomPlayers, sessionService, storeDisplayName } from './utils/sessionService';
 import { applyOnlineResult, applyRoleTally, personalResult, statsService, winnerFromStatus } from './utils/statsService';
 import { generateRandomNorseName } from './utils/norseNames';
 import { notifyTurn, requestTurnNotifications } from './utils/turnNotifier';
@@ -44,6 +44,7 @@ import { RulesModal } from './components/RulesModal';
 import { SettingsModal } from './components/SettingsModal';
 import { MoveHistory } from './components/MoveHistory';
 import { HomeView } from './components/HomeView';
+import { celticKnotClass } from './components/ui';
 
 const STORAGE = {
   stats: 'hnefatafl_stats_v1',
@@ -70,15 +71,6 @@ function playCaptureFeedback(killedKing: boolean) {
   if (typeof navigator !== 'undefined' && navigator.vibrate) {
     navigator.vibrate(killedKing ? [30, 50, 30, 50, 80] : [20, 40, 20]);
   }
-}
-
-function roomPlayers(room: LiveRoom): Record<string, { role: PlayerRole; displayName: string }> {
-  return Object.fromEntries(
-    Object.entries(room.players ?? {}).map(([id, player]) => [
-      id,
-      { role: room.roles?.[id] ?? 'defenders', displayName: player.displayName },
-    ])
-  );
 }
 
 export default function App() {
@@ -211,22 +203,25 @@ export default function App() {
           ? applyOnlineResult(next, personalResult(winner, online.role))
           : next;
 
-      void statsService
-        .recordFinishedGame({
-          uid: online.uid,
-          prev,
-          status,
-          moveCount: totalMoveCount,
-          online: online.roomId
-            ? {
-                roomId: online.roomId,
-                matchKey: meta.restartAt ?? meta.createdAt,
-                players: meta.players,
-              }
-            : undefined,
-        })
-        .then((cloud) => setStats(cloud))
-        .catch(() => undefined);
+      if (sessionService.isGoogleUser()) {
+        void statsService
+          .recordFinishedGame({
+            uid: sessionService.currentUid(),
+            playerId: sessionService.playerId(),
+            prev,
+            status,
+            moveCount: totalMoveCount,
+            online: online.roomId
+              ? {
+                  roomId: online.roomId,
+                  matchKey: meta.restartAt ?? meta.createdAt,
+                  players: meta.players,
+                }
+              : undefined,
+          })
+          .then((cloud) => setStats(cloud))
+          .catch(() => undefined);
+      }
 
       if (online.roomId && winner && online.uid) {
         void sessionService.writeResult(online.roomId, {
@@ -356,7 +351,7 @@ export default function App() {
 
   const handleOpenSandbox = useCallback(() => {
     setIsSandboxMode(true);
-    setOnlineState((prev) => ({ ...prev, roomId: null, role: null }));
+    setOnlineState((prev) => ({ ...prev, ...CLEAR_MATCH }));
     setViewMode('game');
     handleNewGame();
   }, [handleNewGame]);
@@ -368,8 +363,10 @@ export default function App() {
 
   const handleSetUsername = useCallback(async (name: string) => {
     const clipped = await sessionService.setDisplayName(name);
-    const uid = onlineStateRef.current.uid;
-    if (uid) await statsService.setDisplayName(uid, clipped);
+    if (sessionService.isGoogleUser()) {
+      const authUid = sessionService.currentUid();
+      if (authUid) await statsService.setDisplayName(authUid, clipped);
+    }
     setOnlineState((prev) => ({ ...prev, username: clipped }));
   }, []);
 
@@ -392,13 +389,17 @@ export default function App() {
     const roomId = onlineStateRef.current.roomId;
     if (roomId) await sessionService.leaveRoom(roomId);
     await sessionService.signOut();
-    setOnlineState((prev) => ({ ...EMPTY_ONLINE, username: prev.username }));
+    setOnlineState((prev) => ({
+      ...EMPTY_ONLINE,
+      username: prev.username,
+      uid: sessionService.playerId(),
+    }));
     setViewMode('home');
     setIsSettingsOpen(false);
   }, []);
 
   const handleJoinQueue = useCallback(() => {
-    if (!onlineStateRef.current.isSignedIn) return;
+    if (!onlineStateRef.current.isConnected) return;
     setOnlineState((prev) => ({ ...prev, inQueue: true }));
     void sessionService.joinQueue(onlineStateRef.current.username, enterMatch);
   }, [enterMatch]);
@@ -411,13 +412,7 @@ export default function App() {
   const handleLeaveRoom = useCallback(() => {
     const roomId = onlineStateRef.current.roomId;
     if (roomId) void sessionService.leaveRoom(roomId);
-    setOnlineState((prev) => ({
-      ...prev,
-      roomId: null,
-      role: null,
-      opponentId: null,
-      opponentName: null,
-    }));
+    setOnlineState((prev) => ({ ...prev, ...CLEAR_MATCH }));
   }, []);
 
   const handleUndo = useCallback(() => {
@@ -446,7 +441,7 @@ export default function App() {
 
   const handleResetStats = useCallback(() => {
     setStats(EMPTY_STATS);
-    const uid = onlineStateRef.current.uid;
+    const uid = sessionService.isGoogleUser() ? sessionService.currentUid() : null;
     if (uid) void statsService.resetStats(uid);
   }, []);
 
@@ -524,24 +519,31 @@ export default function App() {
       unsub = sessionService.subscribeAuth(async (user) => {
         if (cancelled) return;
         if (!user) {
-          setLobbyUsers([]);
-          setOnlineState((prev) => ({ ...EMPTY_ONLINE, username: prev.username }));
+          await sessionService.ensureGuestSession();
           return;
         }
 
-        const fallbackName = onlineStateRef.current.username || user.displayName || 'Player';
+        const isGoogle = !user.isAnonymous;
+        const username = resolveDisplayName(onlineStateRef.current.username);
+        storeDisplayName(username);
+
         if (onlineStateRef.current.roomId) isReconnectingRef.current = true;
         setOnlineState((prev) => ({
           ...prev,
-          uid: user.uid,
-          isSignedIn: true,
+          uid: sessionService.playerId(),
+          isSignedIn: isGoogle,
           isConnected: true,
-          username: prev.username || fallbackName,
+          username: prev.username || username,
         }));
+
+        if (!isGoogle) {
+          await sessionService.goOnline(username);
+          return;
+        }
 
         const local = loadJson<GameStats>(STORAGE.stats, EMPTY_STATS);
         try {
-          const profile = await statsService.ensureProfile(user, local, onlineStateRef.current.username);
+          const profile = await statsService.ensureProfile(user, local, username);
           if (cancelled) return;
           setStats(profile.stats);
           setOnlineState((prev) => ({ ...prev, username: profile.displayName }));
@@ -549,7 +551,7 @@ export default function App() {
         } catch (error) {
           soundEngine.playError();
           console.error(error);
-          await sessionService.goOnline(fallbackName).catch(() => undefined);
+          await sessionService.goOnline(username).catch(() => undefined);
         }
       });
     });
@@ -561,12 +563,12 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!onlineState.isSignedIn) {
+    if (!onlineState.isConnected) {
       setLobbyUsers([]);
       return;
     }
     return sessionService.subscribePresence(setLobbyUsers);
-  }, [onlineState.isSignedIn]);
+  }, [onlineState.isConnected]);
 
   useEffect(() => {
     const roomId = onlineState.roomId;
@@ -583,13 +585,13 @@ export default function App() {
 
         if (Object.keys(room.players ?? {}).length >= 2) sessionService.persistRoom(roomId);
 
-        const opponent = Object.entries(room.players ?? {}).find(([id]) => id !== uid);
+        const opponent = opponentOf(room, uid);
         setOnlineState((prev) => ({
           ...prev,
           role: room.roles?.[uid] ?? prev.role,
           isMaster: room.hostUid === uid,
-          opponentId: opponent?.[0] ?? null,
-          opponentName: opponent?.[1]?.displayName ?? null,
+          opponentId: opponent?.id ?? null,
+          opponentName: opponent?.name ?? null,
         }));
 
         if (isReconnectingRef.current) {
@@ -622,14 +624,7 @@ export default function App() {
         }
       },
       onGone: () => {
-        setOnlineState((prev) => ({
-          ...prev,
-          roomId: null,
-          role: null,
-          isMaster: false,
-          opponentId: null,
-          opponentName: null,
-        }));
+        setOnlineState((prev) => ({ ...prev, ...CLEAR_MATCH }));
       },
     });
   }, [onlineState.roomId, onlineState.uid, handleNewGame]);
@@ -688,7 +683,7 @@ export default function App() {
           canUndo={historyStack.length > 0}
           showMoveHistory={showMoveHistory}
           onlineState={onlineState}
-          onlineCount={lobbyUsers.length}
+          onlineCount={new Set(lobbyUsers.map((user) => user.id)).size}
           viewMode={viewMode}
           onUndo={handleUndo}
           onToggleMoveHistory={() => setShowMoveHistory((prev) => !prev)}
@@ -696,7 +691,7 @@ export default function App() {
           onOpenSandbox={handleOpenSandbox}
           onOpenSettings={() => setIsSettingsOpen(true)}
           onGoHome={handleGoHome}
-          onRandomizeName={onlineState.isSignedIn ? handleRandomizeName : undefined}
+          onRandomizeName={handleRandomizeName}
         />
       </div>
 
@@ -728,9 +723,7 @@ export default function App() {
             <div className="w-full flex justify-center items-center py-4">
               <motion.div
                 ref={boardScope}
-                className={`relative celtic-knot-border p-2 sm:p-3 ${
-                  isEscapeThreat ? 'celtic-knot-active' : ''
-                }`}
+                className={celticKnotClass(isEscapeThreat, 'p-2 sm:p-3')}
               >
                 <Board
                   board={board}

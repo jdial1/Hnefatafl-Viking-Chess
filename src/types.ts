@@ -134,6 +134,15 @@ export const EMPTY_ONLINE: OnlineMatchState = {
   isSignedIn: false,
 };
 
+export const CLEAR_MATCH = {
+  roomId: null,
+  role: null,
+  isMaster: false,
+  opponentId: null,
+  opponentName: null,
+  inQueue: false,
+} as const;
+
 export type MatchWinner = 'attackers' | 'defenders' | 'draw';
 export type PersonalResult = 'win' | 'loss' | 'draw';
 

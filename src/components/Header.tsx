@@ -1,7 +1,7 @@
 import React from 'react';
 import { Crown, History, RotateCcw, BookOpen, Settings, Users, RefreshCw, Flask } from '../icons';
 import { OnlineMatchState } from '../types';
-import { Btn } from './ui';
+import { Btn, Chip } from './ui';
 
 interface HeaderProps {
   canUndo: boolean;
@@ -9,7 +9,6 @@ interface HeaderProps {
   onlineState: OnlineMatchState;
   onlineCount?: number;
   viewMode?: 'home' | 'game';
-  embedded?: boolean;
   onUndo: () => void;
   onToggleMoveHistory: () => void;
   onOpenRules: () => void;
@@ -29,13 +28,8 @@ function UsernameChip({
   className?: string;
 }) {
   return (
-    <div
-      title={`Player Name: ${name}`}
-      className={`flex items-center gap-1.5 bg-slate-950 px-2 py-1 rounded-lg border border-slate-800 text-xs min-w-0 ${className}`}
-    >
-      <span className="text-amber-300 font-semibold truncate font-celtic">
-        {name}
-      </span>
+    <Chip title={`Player Name: ${name}`} className={className}>
+      <span className="text-amber-300 font-semibold truncate font-celtic">{name}</span>
       {onRandomize && (
         <Btn
           onClick={onRandomize}
@@ -48,7 +42,7 @@ function UsernameChip({
           <RefreshCw className="w-3 h-3" />
         </Btn>
       )}
-    </div>
+    </Chip>
   );
 }
 
@@ -58,7 +52,6 @@ export const Header: React.FC<HeaderProps> = ({
   onlineState,
   onlineCount = 0,
   viewMode = 'game',
-  embedded = false,
   onUndo,
   onToggleMoveHistory,
   onOpenRules,
@@ -70,13 +63,7 @@ export const Header: React.FC<HeaderProps> = ({
   const isGame = viewMode === 'game';
 
   return (
-    <header
-      className={
-        embedded
-          ? 'px-2 py-1 sm:px-3 sm:py-2.5 flex flex-col gap-0 sm:gap-2'
-          : 'w-full max-w-4xl mx-auto px-3 py-2.5 bg-slate-900 border border-slate-800 rounded-xl flex flex-col gap-2'
-      }
-    >
+    <header className="w-full max-w-4xl mx-auto px-3 py-2.5 bg-slate-900 border border-slate-800 rounded-xl flex flex-col gap-2">
       <div className={`items-center justify-between w-full gap-2 ${isGame ? 'hidden sm:flex' : 'flex'}`}>
         <div className="flex items-center gap-2">
           <button
@@ -113,13 +100,13 @@ export const Header: React.FC<HeaderProps> = ({
               className="hidden sm:flex sm:px-2.5"
             />
           )}
-          <div
+          <Chip
             title="Online Players Connected"
-            className="flex items-center gap-1.5 bg-slate-950 px-2 sm:px-2.5 py-1 rounded-lg border border-slate-800 text-xs font-mono font-medium text-slate-200 shrink-0"
+            className="font-mono font-medium text-slate-200 shrink-0 sm:px-2.5"
           >
             <Users className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
             <span>{onlineCount}</span>
-          </div>
+          </Chip>
         </div>
       </div>
 

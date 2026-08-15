@@ -99,6 +99,7 @@ class StatsService {
 
   public async recordFinishedGame(input: {
     uid: string | null;
+    playerId?: string;
     prev: GameStats;
     status: GameStatus;
     moveCount: number;
@@ -113,7 +114,8 @@ class StatsService {
 
     const winner = winnerFromStatus(input.status);
     const matchId = input.online && winner ? `${input.online.roomId}_${input.online.matchKey}` : null;
-    const myRole = input.online ? input.online.players[input.uid]?.role : undefined;
+    const seat = input.playerId ?? input.uid;
+    const myRole = input.online ? input.online.players[seat]?.role : undefined;
 
     if (matchId && winner && input.online) {
       try {

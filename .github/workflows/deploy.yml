@@ -106,6 +106,8 @@ jobs:
           ./gradlew assembleDebug --no-daemon
       - name: Name APK
         run: cp android/app/build/outputs/apk/debug/app-debug.apk Hnefatafl-Viking-Chess.apk
+      - name: Signing fingerprints
+        run: keytool -list -v -keystore android/app/debug.keystore -alias androiddebugkey -storepass android
       - uses: actions/upload-artifact@v4
         with:
           name: Hnefatafl-Viking-Chess

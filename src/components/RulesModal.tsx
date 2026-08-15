@@ -1,9 +1,8 @@
 import { BookOpen, Crown } from '../icons';
 import React from 'react';
-import { PLAYER_ROLES, ROLE_META } from '../utils/roles';
 import { Modal } from './Modal';
 import { ModalHeader } from './ModalHeader';
-import { RoleIcon, SectionTitle } from './ui';
+import { RoleSummary, SectionTitle } from './ui';
 
 interface RulesModalProps {
   isOpen: boolean;
@@ -46,19 +45,7 @@ export const RulesModal: React.FC<RulesModalProps> = ({ isOpen, onClose }) => {
           <SectionTitle as="h3" icon={Crown} className="mb-3">
             Victory objectives
           </SectionTitle>
-          <div className="space-y-3">
-            {PLAYER_ROLES.map((role) => {
-              const meta = ROLE_META[role];
-              return (
-                <div key={role} className="flex items-start gap-3">
-                  <RoleIcon role={role} className={`w-4 h-4 ${meta.colorClass} shrink-0 mt-1`} />
-                  <span>
-                    <strong className="text-slate-100">{meta.plural} ({meta.force}):</strong> {meta.rules}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
+          <RoleSummary field="rules" className="space-y-3" />
         </section>
 
         {MOVEMENT.map((section) => (

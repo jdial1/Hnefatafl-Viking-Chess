@@ -4,7 +4,7 @@ import { GameSettings, GameStats } from '../types';
 import { ROLE_META } from '../utils/roles';
 import { Modal } from './Modal';
 import { ModalHeader } from './ModalHeader';
-import { Btn, Kbd, Metric, SectionTitle, Toggle } from './ui';
+import { Btn, Kbd, MetricRow, SectionTitle, Toggle } from './ui';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -84,20 +84,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <div className="flex items-center justify-between gap-3">
               <SectionTitle as="h3" icon={Trophy}>Battle records</SectionTitle>
               {onResetStats && stats.totalGames > 0 && (
-                <button
-                  type="button"
+                <Btn
                   onClick={onResetStats}
-                  className="text-xs text-slate-400 hover:text-rose-300 flex items-center gap-1 transition-colors"
+                  variant="ghost"
+                  size="sm"
+                  className="text-slate-400 hover:text-rose-300"
                   title="Reset Statistics"
                 >
                   <RotateCcw className="w-3 h-3" />
                   Reset
-                </button>
+                </Btn>
               )}
             </div>
 
-            <div className="grid grid-cols-3 divide-x divide-slate-800 border-y border-slate-800 py-3">
-              {[
+            <MetricRow
+              className="border-y border-slate-800"
+              items={[
                 { label: 'Total Games', value: stats.totalGames },
                 {
                   label: 'Defender Wins',
@@ -109,24 +111,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   value: stats.attackersWins,
                   valueClassName: ROLE_META.attackers.mutedClass,
                 },
-              ].map((metric) => (
-                <Metric
-                  key={metric.label}
-                  {...metric}
-                  className="px-2 sm:px-3"
-                />
-              ))}
-            </div>
+              ]}
+            />
 
-            <div className="grid grid-cols-3 divide-x divide-slate-800 border-b border-slate-800 py-3">
-              {[
+            <MetricRow
+              className="border-b border-slate-800"
+              items={[
                 { label: 'Online Wins', value: stats.onlineWins },
                 { label: 'Online Losses', value: stats.onlineLosses },
                 { label: 'Online Draws', value: stats.onlineDraws },
-              ].map((metric) => (
-                <Metric key={metric.label} {...metric} className="px-2 sm:px-3" />
-              ))}
-            </div>
+              ]}
+            />
 
             <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-mono text-slate-300">
               <span>

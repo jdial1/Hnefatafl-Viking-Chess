@@ -2,20 +2,20 @@
   "rules": {
     "presence": {
       ".read": "auth != null",
-      "$uid": {
-        ".write": "auth != null && auth.uid === $uid"
+      "$id": {
+        ".write": "auth != null"
       }
     },
     "queue": {
       ".read": "auth != null",
-      "$uid": {
-        ".write": "auth != null && auth.uid === $uid"
+      "$id": {
+        ".write": "auth != null"
       }
     },
     "rooms": {
       ".read": "auth != null",
       "$roomId": {
-        ".write": "auth != null && (!data.exists() || data.child('players').hasChild(auth.uid) || (data.child('status').val() === 'waiting' && data.child('players').hasChild(data.child('hostUid').val()) && !data.child('players').hasChild(auth.uid) && newData.child('players').hasChild(auth.uid)))"
+        ".write": "auth != null"
       }
     }
   }
