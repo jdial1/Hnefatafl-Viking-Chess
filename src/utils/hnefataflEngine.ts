@@ -1,5 +1,6 @@
 import {
   BoardState,
+  CellState,
   Piece,
   PieceCounts,
   PlayerRole,
@@ -36,13 +37,30 @@ export function toAlgebraic(r: number, c: number): string {
   return `${COL_LETTERS[c]}${BOARD_SIZE - r}`;
 }
 
-/**
- * Creates initial 11x11 Hnefatafl (Fetlar) board
- */
+export function emptyBoard(): BoardState {
+  return Array.from({ length: BOARD_SIZE }, () => Array<CellState>(BOARD_SIZE).fill(null));
+}
+
+export function hydrateBoard(raw: unknown): BoardState {
+  const board = emptyBoard();
+  if (!raw || typeof raw !== 'object') return board;
+  const rows = raw as Record<string, unknown>;
+  for (let r = 0; r < BOARD_SIZE; r++) {
+    const row = rows[r];
+    if (!row || typeof row !== 'object') continue;
+    const cells = row as Record<string, unknown>;
+    for (let c = 0; c < BOARD_SIZE; c++) {
+      const cell = cells[c];
+      if (cell && typeof cell === 'object' && 'type' in cell && 'role' in cell) {
+        board[r][c] = cell as Piece;
+      }
+    }
+  }
+  return board;
+}
+
 export function createInitialBoard(): BoardState {
-  const board: BoardState = Array(BOARD_SIZE)
-    .fill(null)
-    .map(() => Array(BOARD_SIZE).fill(null));
+  const board = emptyBoard();
 
   let pieceId = 1;
 
@@ -89,7 +107,8 @@ export function createInitialBoard(): BoardState {
  * Calculates valid moves for a piece at (fromR, fromC)
  */
 export function getValidMoves(board: BoardState, from: Position): Position[] {
-  const piece = board[from.r][from.c];
+  const grid = hydrateBoard(board);
+  const piece = grid[from.r][from.c];
   if (!piece) return [];
 
   const validMoves: Position[] = [];
@@ -100,7 +119,7 @@ export function getValidMoves(board: BoardState, from: Position): Position[] {
 
     while (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE) {
       // Check if square is occupied
-      if (board[nr][nc] !== null) {
+      if (grid[nr][nc] !== null) {
         break; // Obstacle hit
       }
 
@@ -166,7 +185,7 @@ export function executeMove(
   from: Position,
   to: Position
 ): { newBoard: BoardState; captured: Position[] } {
-  const newBoard = board.map(row => [...row]);
+  const newBoard = hydrateBoard(board);
   const piece = newBoard[from.r][from.c];
   if (!piece) return { newBoard, captured: [] };
 
@@ -267,9 +286,10 @@ export function checkKingCaptured(board: BoardState, kingPos: Position): boolean
  * Finds current position of the King
  */
 export function findKing(board: BoardState): Position | null {
+  const grid = hydrateBoard(board);
   for (let r = 0; r < BOARD_SIZE; r++) {
     for (let c = 0; c < BOARD_SIZE; c++) {
-      if (board[r][c]?.type === 'king') {
+      if (grid[r][c]?.type === 'king') {
         return { r, c };
       }
     }
@@ -286,7 +306,8 @@ export function checkGameStatus(
   board: BoardState,
   currentTurn: PlayerRole
 ): { status: 'playing' | 'defenders_win' | 'attackers_win' | 'draw'; reason?: string } {
-  const kingPos = findKing(board);
+  const grid = hydrateBoard(board);
+  const kingPos = findKing(grid);
 
   // If King missing -> Attackers win
   if (!kingPos) {
@@ -302,9 +323,9 @@ export function checkGameStatus(
   let hasValidMoves = false;
   for (let r = 0; r < BOARD_SIZE; r++) {
     for (let c = 0; c < BOARD_SIZE; c++) {
-      const p = board[r][c];
+      const p = grid[r][c];
       if (p && p.role === currentTurn) {
-        const moves = getValidMoves(board, { r, c });
+        const moves = getValidMoves(grid, { r, c });
         if (moves.length > 0) {
           hasValidMoves = true;
           break;
@@ -337,13 +358,14 @@ export function formatNotation(from: Position, to: Position, piece: Piece): stri
  * Counts total active and captured pieces on the board
  */
 export function countPieces(board: BoardState): PieceCounts {
+  const grid = hydrateBoard(board);
   let attackers = 0;
   let defenders = 0;
   let hasKing = false;
 
   for (let r = 0; r < BOARD_SIZE; r++) {
     for (let c = 0; c < BOARD_SIZE; c++) {
-      const p = board[r][c];
+      const p = grid[r][c];
       if (!p) continue;
       if (p.role === 'attackers') attackers++;
       else if (p.role === 'defenders') {

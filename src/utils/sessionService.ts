@@ -34,6 +34,8 @@ import {
   RoomResult,
 } from '../types';
 import { auth, rtdb } from './firebase';
+import { hydrateBoard } from './hnefataflEngine';
+import { hydrateMove } from './sagaVoice';
 import { clipDisplayName, generateRandomNorseName } from './norseNames';
 import { soundEngine } from './soundEngine';
 
@@ -72,6 +74,20 @@ export function resolvePhotoURL(user: User | null | undefined, extra?: string | 
     if (profile.photoURL?.trim()) return profile.photoURL.trim();
   }
   return null;
+}
+
+function hydrateRoom(room: LiveRoom): LiveRoom {
+  return {
+    ...room,
+    lastMove: room.lastMove
+      ? {
+          ...room.lastMove,
+          board: room.lastMove.board ? hydrateBoard(room.lastMove.board) : undefined,
+          moveRecord: room.lastMove.moveRecord ? hydrateMove(room.lastMove.moveRecord) : undefined,
+        }
+      : room.lastMove,
+    state: room.state ? { ...room.state, board: hydrateBoard(room.state.board) } : room.state,
+  };
 }
 
 function requirePlayerId(): string {
@@ -317,7 +333,7 @@ class SessionService {
         handlers.onGone();
         return;
       }
-      handlers.onUpdate(snap.val() as LiveRoom);
+      handlers.onUpdate(hydrateRoom(snap.val() as LiveRoom));
     });
   }
 

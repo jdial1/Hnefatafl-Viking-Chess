@@ -26,10 +26,11 @@ import {
   executeMove,
   formatNotation,
   getValidMoves,
+  hydrateBoard,
   isKingThreatened,
 } from './utils/hnefataflEngine';
 import { JUICE, hitStopDuration, shakeAmplitude, useScreenShake } from './utils/juice';
-import { createMoveRecord } from './utils/sagaVoice';
+import { createMoveRecord, hydrateMove } from './utils/sagaVoice';
 import { soundEngine } from './utils/soundEngine';
 import { opponentOf, resolveDisplayName, roomPlayers, sessionService, storeDisplayName } from './utils/sessionService';
 import { applyOnlineResult, applyRoleTally, personalResult, statsService, winnerFromStatus } from './utils/statsService';
@@ -108,8 +109,9 @@ export default function App() {
   const [stats, setStats] = useState<GameStats>(() => ({ ...EMPTY_STATS, ...loadJson(STORAGE.stats, EMPTY_STATS) }));
 
   const appUpdate = useAppUpdate();
-  const pieceCounts = useMemo(() => countPieces(board), [board]);
-  const isEscapeThreat = useMemo(() => isKingThreatened(board), [board]);
+  const playBoard = useMemo(() => hydrateBoard(board), [board]);
+  const pieceCounts = useMemo(() => countPieces(playBoard), [playBoard]);
+  const isEscapeThreat = useMemo(() => isKingThreatened(playBoard), [playBoard]);
   const { scope: boardScope, shake } = useScreenShake(settings.juiceEnabled);
 
   const boardRef = useRef(board);
@@ -127,7 +129,7 @@ export default function App() {
   const pendingMatchRef = useRef<MatchFound | null>(null);
   const roomMetaRef = useRef({ createdAt: 0, restartAt: null as number | null, players: {} as Record<string, { role: PlayerRole; displayName: string }> });
 
-  boardRef.current = board;
+  boardRef.current = playBoard;
   currentTurnRef.current = currentTurn;
   onlineStateRef.current = onlineState;
   moveHistoryRef.current = moveHistory;
@@ -149,17 +151,24 @@ export default function App() {
     if (!localStorage.getItem(STORAGE.rules)) setIsRulesOpen(true);
     const parsed = loadJson<Record<string, unknown> | null>(STORAGE.save, null);
     if (!parsed) return;
-    if (parsed.board) setBoard(parsed.board as BoardState);
+    if (parsed.board) setBoard(hydrateBoard(parsed.board));
     if (parsed.currentTurn) setCurrentTurn(parsed.currentTurn as PlayerRole);
     if (Array.isArray(parsed.moveHistory)) {
-      const history = parsed.moveHistory as Move[];
+      const history = (parsed.moveHistory as Move[]).map(hydrateMove);
       setMoveHistory(history);
       if (history.length > 0) {
         const last = history[history.length - 1];
         setLastMove({ from: last.from, to: last.to, piece: last.piece });
       }
     }
-    if (parsed.historyStack) setHistoryStack(parsed.historyStack as GameSnapshot[]);
+    if (Array.isArray(parsed.historyStack)) {
+      setHistoryStack(
+        (parsed.historyStack as GameSnapshot[]).map((snap) => ({
+          ...snap,
+          board: hydrateBoard(snap.board),
+        }))
+      );
+    }
     if (Array.isArray(parsed.scars)) setScars(parsed.scars as Scar[]);
     if (parsed.gameStatus) setGameStatus(parsed.gameStatus as GameStatus);
     if (parsed.onlineState) {
@@ -178,7 +187,7 @@ export default function App() {
     localStorage.setItem(
       STORAGE.save,
       JSON.stringify({
-        board,
+        board: playBoard,
         currentTurn,
         moveHistory,
         historyStack,
@@ -531,37 +540,21 @@ export default function App() {
 
   const handleRemoteMove = useCallback(
     (data: MovePayload) => {
-      const { from, to, board: incomingBoard, nextTurn: incomingNextTurn, moveRecord } = data;
-      let finalBoard: BoardState;
-      let captured: Position[] = [];
-
-      if (incomingBoard && incomingNextTurn) {
-        finalBoard = incomingBoard;
-        captured = moveRecord?.captures || [];
-      } else {
-        const res = executeMove(boardRef.current, from, to);
-        finalBoard = res.newBoard;
-        captured = res.captured;
-      }
-
-      const nextTurn = incomingNextTurn || (currentTurnRef.current === 'defenders' ? 'attackers' : 'defenders');
+      const { from, to, nextTurn: incomingNextTurn, moveRecord } = data;
+      const piece = moveRecord?.piece ?? boardRef.current[from.r]?.[from.c];
+      const { newBoard, captured } = executeMove(boardRef.current, from, to);
+      const nextTurn = incomingNextTurn ?? (currentTurnRef.current === 'defenders' ? 'attackers' : 'defenders');
       if (onlineStateRef.current.role === nextTurn) notifyTurn();
 
-      const remotePiece =
-        moveRecord?.piece ??
-        (incomingBoard ? incomingBoard[to.r]?.[to.c] : undefined) ??
-        finalBoard[to.r]?.[to.c] ??
-        undefined;
+      const record = piece
+        ? createMoveRecord(
+            { from, to, piece, captures: captured, board: newBoard },
+            formatNotation(from, to, piece),
+            moveRecord?.timestamp
+          )
+        : undefined;
 
-      let record = moveRecord;
-      if (!record && remotePiece) {
-        record = createMoveRecord(
-          { from, to, piece: remotePiece, captures: captured, board: finalBoard },
-          formatNotation(from, to, remotePiece)
-        );
-      }
-
-      applyMoveResult(finalBoard, nextTurn, from, to, captured, remotePiece, record);
+      applyMoveResult(newBoard, nextTurn, from, to, captured, piece, record);
     },
     [applyMoveResult]
   );
@@ -824,7 +817,7 @@ export default function App() {
                 className={celticKnotClass(isEscapeThreat, 'p-2 sm:p-3')}
               >
                 <Board
-                  board={board}
+                  board={playBoard}
                   selectedPos={selectedPos}
                   validMoves={validMoves}
                   lastMove={lastMove}

@@ -80,6 +80,10 @@ export function describeMove({ from, to, piece, captures, board }: MoveContext):
  * Single place a Move record is built, so notation, saga, and captures can never
  * drift apart between the local and remote move paths.
  */
+export function hydrateMove(move: Move): Move {
+  return { ...move, captures: Array.isArray(move.captures) ? move.captures : [] };
+}
+
 export function createMoveRecord(
   context: MoveContext,
   notation: string,
