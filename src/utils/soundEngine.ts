@@ -290,9 +290,34 @@ class SoundEngine {
     osc.stop(now + duration);
   }
 
-  /**
-   * Invalid move thud
-   */
+  public playMatchFound() {
+    if (!this.enabled) return;
+    this.initCtx();
+    if (!this.ctx) return;
+
+    const { freqStart, freqEnd, durationMs, gain: peakGain, thumpStart, thumpEnd, thumpGain } = JUICE.matchFound;
+    const duration = durationMs / 1000;
+    const now = this.ctx.currentTime;
+
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(this.vary(freqStart), now);
+    osc.frequency.exponentialRampToValueAtTime(this.vary(freqEnd), now + duration);
+
+    gain.gain.setValueAtTime(this.varyGain(peakGain), now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + duration);
+
+    this.thump(this.vary(thumpStart), thumpEnd, this.varyGain(thumpGain), duration);
+  }
+
   public playError() {
     if (!this.enabled) return;
     this.initCtx();

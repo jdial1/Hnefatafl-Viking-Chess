@@ -77,11 +77,20 @@ textarea,
     background-image: var(--celtic-knot-bg-active);
     animation: knotScroll 2s linear infinite;
   }
+
+  .turn-pulse {
+    animation: turnPulse var(--turn-pulse-ms) ease-in-out infinite;
+  }
 }
 
 @keyframes knotScroll {
   0% { background-position-x: 0px; }
   100% { background-position-x: var(--celtic-knot-tile-width, 32px); }
+}
+
+@keyframes turnPulse {
+  0%, 100% { opacity: var(--turn-pulse-min); transform: scale(1); }
+  50% { opacity: var(--turn-pulse-max); transform: scale(var(--turn-pulse-scale)); }
 }
 
 @media (prefers-reduced-motion: reduce) {

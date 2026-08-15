@@ -63,6 +63,21 @@ export function Chip({
   );
 }
 
+export function Avatar({
+  src,
+  fallback,
+  className = 'w-5 h-5 rounded-md',
+}: {
+  src?: string | null;
+  fallback: React.ReactNode;
+  className?: string;
+}) {
+  if (src) {
+    return <img src={src} alt="" referrerPolicy="no-referrer" className={`object-cover shrink-0 ${className}`} />;
+  }
+  return <>{fallback}</>;
+}
+
 export function Btn({
   variant = 'secondary',
   size = 'md',

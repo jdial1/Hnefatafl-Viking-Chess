@@ -43,6 +43,11 @@ export const TurnBanner: React.FC<TurnBannerProps> = ({
   const isMyTurn = isSandboxMode || currentTurn === playerRole;
   const myRole = playerRole ? ROLE_META[playerRole] : null;
   const turnMeta = ROLE_META[currentTurn];
+  const turnLabel = isSandboxMode
+    ? `${turnMeta.plural} to move`
+    : isMyTurn
+      ? 'Your turn'
+      : 'Waiting';
 
   return (
     <div className="w-full max-w-4xl mx-auto px-4 sm:px-0 mb-1">
@@ -56,27 +61,35 @@ export const TurnBanner: React.FC<TurnBannerProps> = ({
             {isSandboxMode ? (
               <div title="Sandbox mode" className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-amber-500/10 text-amber-300 text-xs font-semibold">
                 <Flask className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                <span className="hidden sm:inline">Sandbox</span>
+                <span>Sandbox</span>
               </div>
             ) : myRole && playerRole ? (
-              <div title={`Playing as ${myRole.label}`} className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-semibold ${myRole.bgClass}`}>
+              <div title={`You are ${myRole.plural}`} className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-semibold ${myRole.bgClass}`}>
                 <RoleIcon role={playerRole} className="w-3.5 h-3.5 shrink-0" />
-                <span className="hidden sm:inline">{myRole.label}</span>
+                <span>You</span>
               </div>
             ) : (
               <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-950 text-slate-300 text-xs font-medium">
                 <Crown className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                <span className="hidden sm:inline">Local</span>
+                <span>Local</span>
               </div>
             )}
           </div>
 
           <div className="flex items-center justify-center flex-1 truncate px-1 gap-1.5 sm:gap-2 min-w-0">
-            <div className={`flex items-center justify-center gap-1.5 px-2 sm:px-3 py-1 rounded-lg font-mono text-xs font-bold ${turnMeta.turnClass}`}>
-              <RoleIcon role={currentTurn} className="w-3.5 h-3.5 shrink-0" />
+            <div
+              className={`flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-sm font-bold ${
+                isMyTurn ? turnMeta.turnClass : 'bg-slate-950 text-slate-300 border border-slate-800'
+              }`}
+            >
+              <RoleIcon role={currentTurn} className="w-4 h-4 shrink-0" />
               <span className="truncate">
-                {turnMeta.label}
-                <span className="hidden sm:inline"> turn</span>
+                {turnLabel}
+                {!isSandboxMode && (
+                  <span className="hidden sm:inline font-semibold">
+                    {isMyTurn ? ` · ${turnMeta.plural}` : ` · ${turnMeta.plural} to move`}
+                  </span>
+                )}
               </span>
             </div>
 

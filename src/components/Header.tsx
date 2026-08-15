@@ -1,7 +1,7 @@
 import React from 'react';
 import { Crown, History, RotateCcw, BookOpen, Settings, Users, RefreshCw, Flask, GoogleG } from '../icons';
 import { OnlineMatchState } from '../types';
-import { Btn, Chip } from './ui';
+import { Avatar, Btn, Chip } from './ui';
 
 interface HeaderProps {
   canUndo: boolean;
@@ -35,17 +35,9 @@ function UsernameChip({
 }) {
   return (
     <Chip title={`Player Name: ${name}`} className={className}>
-      {signedIn &&
-        (photoURL ? (
-          <img
-            src={photoURL}
-            alt=""
-            referrerPolicy="no-referrer"
-            className="w-5 h-5 rounded-md object-cover shrink-0"
-          />
-        ) : (
-          <GoogleG className="w-4 h-4 shrink-0" />
-        ))}
+      {signedIn && (
+        <Avatar src={photoURL} fallback={<GoogleG className="w-4 h-4 shrink-0" />} />
+      )}
       <span className="text-amber-300 font-semibold truncate font-celtic">{name}</span>
       {onRandomize && (
         <Btn

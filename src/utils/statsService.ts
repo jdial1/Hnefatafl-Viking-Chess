@@ -11,6 +11,7 @@ import {
 } from '../types';
 import { firestore } from './firebase';
 import { clipDisplayName, generateRandomNorseName } from './norseNames';
+import { resolvePhotoURL } from './sessionService';
 
 function asStats(value: Partial<GameStats> | undefined): GameStats {
   return { ...EMPTY_STATS, ...value };
@@ -58,7 +59,7 @@ class StatsService {
     const userRef = doc(firestore, 'users', user.uid);
     const snap = await getDoc(userRef);
     const googleName = user.displayName ?? null;
-    const photoURL = user.photoURL ?? null;
+    const photoURL = resolvePhotoURL(user);
 
     if (!snap.exists()) {
       const displayName = clipDisplayName(preferredName || generateRandomNorseName());
@@ -78,17 +79,19 @@ class StatsService {
     const data = snap.data();
     let stats = asStats(data.stats);
     const displayName = clipDisplayName(data.displayName || preferredName || generateRandomNorseName());
+    const storedPhoto = typeof data.photoURL === 'string' ? data.photoURL : null;
+    const nextPhoto = photoURL || storedPhoto;
 
     if (stats.totalGames === 0 && localStats.totalGames > 0) {
       stats = asStats(localStats);
       await setDoc(userRef, { stats }, { merge: true });
     }
 
-    if (!data.displayName) {
-      await setDoc(userRef, { displayName, photoURL, googleName }, { merge: true });
+    if (!data.displayName || (nextPhoto && data.photoURL !== nextPhoto)) {
+      await setDoc(userRef, { displayName, photoURL: nextPhoto, googleName }, { merge: true });
     }
 
-    return { displayName, photoURL, googleName, stats };
+    return { displayName, photoURL: nextPhoto, googleName, stats };
   }
 
   public async setDisplayName(uid: string, name: string): Promise<string> {

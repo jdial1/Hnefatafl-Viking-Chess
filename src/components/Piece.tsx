@@ -1,5 +1,6 @@
 import React, { memo } from 'react';
 import { PieceType, PlayerRole } from '../types';
+import { ROLE_META } from '../utils/roles';
 
 interface PieceProps {
   type: PieceType;
@@ -7,8 +8,8 @@ interface PieceProps {
   isSelected?: boolean;
   isGhost?: boolean;
   isCapturing?: boolean;
-  /** The king has an open road to a corner: give the audio cue a visible body. */
   isAlert?: boolean;
+  isTurnPulse?: boolean;
   size?: number;
 }
 
@@ -20,6 +21,8 @@ function PieceShell({
   isGhost,
   isCapturing,
   isAlert,
+  isTurnPulse,
+  pulseClass,
   clipPath,
   children,
 }: {
@@ -27,6 +30,8 @@ function PieceShell({
   isGhost: boolean;
   isCapturing: boolean;
   isAlert: boolean;
+  isTurnPulse: boolean;
+  pulseClass: string;
   clipPath?: string;
   children: React.ReactNode;
 }) {
@@ -51,6 +56,12 @@ function PieceShell({
           style={clipPath ? { clipPath } : undefined}
         />
       )}
+      {isTurnPulse && !isAlert && (
+        <div
+          className={`absolute -inset-1 turn-pulse pointer-events-none ${pulseClass} ${clipPath ? '' : 'rounded-full'}`}
+          style={clipPath ? { clipPath } : undefined}
+        />
+      )}
       {children}
       {isSelected && (
         <div
@@ -71,9 +82,17 @@ export const PieceComponent: React.FC<PieceProps> = memo(({
   isGhost = false,
   isCapturing = false,
   isAlert = false,
+  isTurnPulse = false,
   size = 40,
 }) => {
-  const shell = { isSelected, isGhost, isCapturing, isAlert };
+  const shell = {
+    isSelected,
+    isGhost,
+    isCapturing,
+    isAlert,
+    isTurnPulse,
+    pulseClass: ROLE_META[role].pulseClass,
+  };
 
   if (type === 'king') {
     return (

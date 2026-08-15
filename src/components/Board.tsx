@@ -1,6 +1,6 @@
 import { Shield, Crown } from '../icons';
 import React, { useMemo, memo, useState, useRef } from 'react';
-import { motion, LayoutGroup, AnimatePresence } from 'motion/react';
+import { motion, LayoutGroup, AnimatePresence, useReducedMotion } from 'motion/react';
 import { BoardState, DyingPiece, Piece, PlayerRole, Position, Scar } from '../types';
 import { BOARD_SIZE, isCorner, isThrone, toAlgebraic } from '../utils/hnefataflEngine';
 import { JUICE, scarOpacity } from '../utils/juice';
@@ -16,6 +16,7 @@ interface BoardProps {
   scars: Scar[];
   moveCount: number;
   currentTurn: PlayerRole;
+  playerRole: PlayerRole | null;
   showValidMoves: boolean;
   juiceEnabled: boolean;
   isEscapeThreat: boolean;
@@ -35,12 +36,16 @@ export const Board: React.FC<BoardProps> = memo(({
   scars,
   moveCount,
   currentTurn,
+  playerRole,
   showValidMoves,
   juiceEnabled,
   isEscapeThreat,
   onSelectPiece,
   onMovePiece,
 }) => {
+  const prefersReducedMotion = useReducedMotion();
+  const pulseTurns = juiceEnabled && !prefersReducedMotion && (!playerRole || currentTurn === playerRole);
+
   const [touchingCell, setTouchingCell] = useState<Position | null>(null);
   const [hoveredDragCell, setHoveredDragCell] = useState<Position | null>(null);
   const [focusedPos, setFocusedPos] = useState<Position | null>(null);
@@ -220,6 +225,12 @@ export const Board: React.FC<BoardProps> = memo(({
       tabIndex={0}
       onKeyDown={handleKeyDown}
       className="relative w-full max-w-[620px] aspect-square mx-auto select-none outline-none focus-visible:ring-2 focus-visible:ring-amber-400 rounded-xl"
+      style={{
+        '--turn-pulse-ms': `${JUICE.turnPulse.durationMs}ms`,
+        '--turn-pulse-min': JUICE.turnPulse.minOpacity,
+        '--turn-pulse-max': JUICE.turnPulse.maxOpacity,
+        '--turn-pulse-scale': JUICE.turnPulse.scale,
+      } as React.CSSProperties}
     >
       <div className="w-full h-full p-0.5 sm:p-2 rounded-xl bg-slate-900 border border-slate-800 flex flex-col justify-between">
         <LayoutGroup id="hnefatafl-board">
@@ -326,6 +337,7 @@ export const Board: React.FC<BoardProps> = memo(({
                             role={piece.role}
                             isSelected={isSelected}
                             isAlert={isAlertKing}
+                            isTurnPulse={pulseTurns && piece.role === currentTurn && !isSelected}
                           />
                         </motion.div>
                       </motion.div>

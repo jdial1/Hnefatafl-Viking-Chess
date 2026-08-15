@@ -77,6 +77,7 @@ export interface LobbyUser {
   inQueue: boolean;
   roomId?: string;
   signedIn?: boolean;
+  photoURL?: string | null;
 }
 
 export interface OnlineMatchState {
@@ -150,6 +151,7 @@ export type PersonalResult = 'win' | 'loss' | 'draw';
 export interface RoomPlayer {
   displayName: string;
   joinedAt: number;
+  ready?: boolean;
 }
 
 export interface RoomResult {

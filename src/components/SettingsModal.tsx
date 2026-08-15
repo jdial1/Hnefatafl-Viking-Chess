@@ -4,7 +4,7 @@ import { GameSettings, GameStats } from '../types';
 import { ROLE_META } from '../utils/roles';
 import { Modal } from './Modal';
 import { ModalHeader } from './ModalHeader';
-import { Btn, Kbd, MetricRow, SectionTitle, Toggle } from './ui';
+import { Avatar, Btn, Kbd, MetricRow, SectionTitle, Toggle } from './ui';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -174,18 +174,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         {isSignedIn && account && (
           <SettingRow
             icon={
-              account.photoURL ? (
-                <img
-                  src={account.photoURL}
-                  alt=""
-                  referrerPolicy="no-referrer"
-                  className="w-8 h-8 rounded-lg object-cover shrink-0"
-                />
-              ) : (
-                <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-300 font-semibold flex items-center justify-center shrink-0">
-                  {(username || account.name).trim().charAt(0).toUpperCase() || '?'}
-                </div>
-              )
+              <Avatar
+                src={account.photoURL}
+                className="w-8 h-8 rounded-lg"
+                fallback={
+                  <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-300 font-semibold flex items-center justify-center shrink-0">
+                    {(username || account.name).trim().charAt(0).toUpperCase() || '?'}
+                  </div>
+                }
+              />
             }
             title={username || account.name}
             hint={account.email || account.name}

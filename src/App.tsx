@@ -43,6 +43,7 @@ import { VictoryModal } from './components/VictoryModal';
 import { RulesModal } from './components/RulesModal';
 import { SettingsModal } from './components/SettingsModal';
 import { PlayersModal } from './components/PlayersModal';
+import { MatchFoundModal } from './components/MatchFoundModal';
 import { MoveHistory } from './components/MoveHistory';
 import { HomeView } from './components/HomeView';
 import { UpdateBanner } from './components/UpdateBanner';
@@ -95,6 +96,9 @@ export default function App() {
   const [isRulesOpen, setIsRulesOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPlayersOpen, setIsPlayersOpen] = useState(false);
+  const [pendingMatch, setPendingMatch] = useState<MatchFound | null>(null);
+  const [matchReady, setMatchReady] = useState(false);
+  const [opponentReady, setOpponentReady] = useState(false);
   const [isSandboxMode, setIsSandboxMode] = useState(false);
   const [settings, setSettings] = useState<GameSettings>({
     soundEnabled: true,
@@ -120,6 +124,7 @@ export default function App() {
   const handleRemoteMoveRef = useRef<((data: MovePayload) => void) | null>(null);
   const lastAppliedMoveAtRef = useRef(0);
   const lastRestartAtRef = useRef(0);
+  const pendingMatchRef = useRef<MatchFound | null>(null);
   const roomMetaRef = useRef({ createdAt: 0, restartAt: null as number | null, players: {} as Record<string, { role: PlayerRole; displayName: string }> });
 
   boardRef.current = board;
@@ -327,27 +332,54 @@ export default function App() {
     setStatusReason('');
   }, []);
 
-  const enterMatch = useCallback(
-    (match: MatchFound) => {
-      requestTurnNotifications();
-      roomMetaRef.current = {
-        ...roomMetaRef.current,
-        createdAt: match.createdAt,
-      };
-      setOnlineState((prev) => ({
-        ...prev,
-        roomId: match.roomId,
-        role: match.role,
-        isMaster: match.isMaster,
-        opponentId: match.opponentId,
-        opponentName: match.opponentName,
-        inQueue: false,
-      }));
-      handleNewGame();
-      setViewMode('game');
-    },
-    [handleNewGame]
-  );
+  const offerMatch = useCallback((match: MatchFound) => {
+    requestTurnNotifications();
+    soundEngine.playMatchFound();
+    pendingMatchRef.current = match;
+    setPendingMatch(match);
+    roomMetaRef.current = {
+      ...roomMetaRef.current,
+      createdAt: match.createdAt,
+    };
+    setOnlineState((prev) => ({
+      ...prev,
+      roomId: match.roomId,
+      role: match.role,
+      isMaster: match.isMaster,
+      opponentId: match.opponentId,
+      opponentName: match.opponentName,
+      inQueue: false,
+    }));
+  }, []);
+
+  const beginPendingGame = useCallback(() => {
+    pendingMatchRef.current = null;
+    setPendingMatch(null);
+    setMatchReady(false);
+    setOpponentReady(false);
+    handleNewGame();
+    setViewMode('game');
+  }, [handleNewGame]);
+
+  const handleAcceptMatch = useCallback(() => {
+    const match = pendingMatchRef.current;
+    if (!match) return;
+    setMatchReady(true);
+    void sessionService.acceptMatch(match.roomId).catch(() => {
+      soundEngine.playError();
+      setMatchReady(false);
+    });
+  }, []);
+
+  const handleDeclineMatch = useCallback(() => {
+    const roomId = pendingMatchRef.current?.roomId ?? onlineStateRef.current.roomId;
+    pendingMatchRef.current = null;
+    setPendingMatch(null);
+    setMatchReady(false);
+    setOpponentReady(false);
+    if (roomId) void sessionService.leaveRoom(roomId);
+    setOnlineState((prev) => ({ ...prev, ...CLEAR_MATCH }));
+  }, []);
 
   const handleRematch = useCallback(() => {
     handleNewGame();
@@ -423,8 +455,8 @@ export default function App() {
   const handleJoinQueue = useCallback(() => {
     if (!onlineStateRef.current.isConnected) return;
     setOnlineState((prev) => ({ ...prev, inQueue: true }));
-    void sessionService.joinQueue(onlineStateRef.current.username, enterMatch);
-  }, [enterMatch]);
+    void sessionService.joinQueue(onlineStateRef.current.username, offerMatch);
+  }, [offerMatch]);
 
   const handleLeaveQueue = useCallback(() => {
     void sessionService.leaveQueue();
@@ -433,6 +465,10 @@ export default function App() {
 
   const handleLeaveRoom = useCallback(() => {
     const roomId = onlineStateRef.current.roomId;
+    pendingMatchRef.current = null;
+    setPendingMatch(null);
+    setMatchReady(false);
+    setOpponentReady(false);
     if (roomId) void sessionService.leaveRoom(roomId);
     setOnlineState((prev) => ({ ...prev, ...CLEAR_MATCH }));
   }, []);
@@ -483,6 +519,7 @@ export default function App() {
 
   useBackButton(() => {
     if (showMoveHistory) setShowMoveHistory(false);
+    else if (pendingMatch) handleDeclineMatch();
     else if (isPlayersOpen) setIsPlayersOpen(false);
     else if (isSettingsOpen) setIsSettingsOpen(false);
     else if (isRulesOpen) handleCloseRules();
@@ -578,7 +615,7 @@ export default function App() {
           if (cancelled) return;
           setStats(profile.stats);
           setOnlineState((prev) => ({ ...prev, username: profile.displayName }));
-          await sessionService.goOnline(profile.displayName);
+          await sessionService.goOnline(profile.displayName, profile.photoURL);
         } catch (error) {
           soundEngine.playError();
           console.error(error);
@@ -608,9 +645,28 @@ export default function App() {
           players: roomPlayers(room),
         };
 
-        if (Object.keys(room.players ?? {}).length >= 2) sessionService.persistRoom(roomId);
+        if (room.status === 'playing' && Object.keys(room.players ?? {}).length >= 2) {
+          sessionService.persistRoom(roomId);
+        }
+
+        if (pendingMatchRef.current && Object.keys(room.players ?? {}).length < 2) {
+          pendingMatchRef.current = null;
+          setPendingMatch(null);
+          setMatchReady(false);
+          setOpponentReady(false);
+          void sessionService.leaveRoom(roomId);
+          setOnlineState((prev) => ({ ...prev, ...CLEAR_MATCH }));
+          return;
+        }
 
         const opponent = opponentOf(room, uid);
+        if (pendingMatchRef.current) {
+          setOpponentReady(Boolean(opponent && room.players?.[opponent.id]?.ready));
+          if (room.status === 'playing') {
+            beginPendingGame();
+            return;
+          }
+        }
         setOnlineState((prev) => ({
           ...prev,
           role: room.roles?.[uid] ?? prev.role,
@@ -649,10 +705,14 @@ export default function App() {
         }
       },
       onGone: () => {
+        pendingMatchRef.current = null;
+        setPendingMatch(null);
+        setMatchReady(false);
+        setOpponentReady(false);
         setOnlineState((prev) => ({ ...prev, ...CLEAR_MATCH }));
       },
     });
-  }, [onlineState.roomId, onlineState.uid, handleNewGame]);
+  }, [onlineState.roomId, onlineState.uid, handleNewGame, beginPendingGame]);
 
   const handleSelectPiece = useCallback((pos: Position) => {
     if (gameStatusRef.current !== 'playing' || isFrozenRef.current) return;
@@ -701,6 +761,8 @@ export default function App() {
     [applyMoveResult]
   );
 
+  const pendingOpponent = lobbyUsers.find((user) => user.id === pendingMatch?.opponentId);
+
   return (
     <div className="screen-safe w-full bg-norse-argyle text-slate-100 flex flex-col justify-between font-sans selection:bg-amber-500 selection:text-slate-950">
       <div className="w-full px-4 pt-3 sm:pt-4">
@@ -737,7 +799,7 @@ export default function App() {
             onJoinQueue={handleJoinQueue}
             onLeaveQueue={handleLeaveQueue}
             onLeaveRoom={handleLeaveRoom}
-            onEnterBoard={() => setViewMode('game')}
+            onEnterBoard={() => (pendingMatch ? handleAcceptMatch() : setViewMode('game'))}
             onPlayAsGuest={() => void handlePlayAsGuest()}
             onSignIn={() => void handleSignIn()}
           />
@@ -770,6 +832,7 @@ export default function App() {
                   scars={scars}
                   moveCount={moveHistory.length}
                   currentTurn={currentTurn}
+                  playerRole={onlineState.role}
                   showValidMoves={settings.showValidMoves}
                   juiceEnabled={settings.juiceEnabled}
                   isEscapeThreat={isEscapeThreat}
@@ -786,6 +849,17 @@ export default function App() {
 
       <MoveHistory isOpen={showMoveHistory} moves={moveHistory} onClose={() => setShowMoveHistory(false)} />
       <PlayersModal isOpen={isPlayersOpen} users={lobbyUsers} onClose={() => setIsPlayersOpen(false)} />
+      <MatchFoundModal
+        isOpen={Boolean(pendingMatch)}
+        opponentName={pendingMatch?.opponentName || onlineState.opponentName || ''}
+        opponentPhotoURL={pendingOpponent?.photoURL}
+        opponentSignedIn={pendingOpponent?.signedIn}
+        yourRole={pendingMatch?.role || onlineState.role || 'defenders'}
+        accepted={matchReady}
+        opponentReady={opponentReady}
+        onJoin={handleAcceptMatch}
+        onLeave={handleDeclineMatch}
+      />
       <VictoryModal
         status={gameStatus}
         reason={statusReason}

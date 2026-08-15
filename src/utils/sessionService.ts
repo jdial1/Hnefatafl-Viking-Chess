@@ -64,6 +64,16 @@ export function resolveDisplayName(current?: string): string {
   return current || getStoredDisplayName() || generateRandomNorseName();
 }
 
+export function resolvePhotoURL(user: User | null | undefined, extra?: string | null): string | null {
+  if (extra?.trim()) return extra.trim();
+  if (!user || user.isAnonymous) return null;
+  if (user.photoURL?.trim()) return user.photoURL.trim();
+  for (const profile of user.providerData) {
+    if (profile.photoURL?.trim()) return profile.photoURL.trim();
+  }
+  return null;
+}
+
 function requirePlayerId(): string {
   if (!auth.currentUser) throw new Error('Session is not ready.');
   return getDeviceId();
@@ -141,6 +151,7 @@ class SessionService {
   private queuedRoomUnsub: Unsubscribe | null = null;
   private queuedRoomId: string | null = null;
   private displayName = '';
+  private photoURL: string | null = null;
 
   public currentUid(): string | null {
     return auth.currentUser?.uid ?? null;
@@ -160,7 +171,7 @@ class SessionService {
     return {
       name: user.displayName || getStoredDisplayName(),
       email: user.email,
-      photoURL: user.photoURL,
+      photoURL: resolvePhotoURL(user, this.photoURL),
     };
   }
 
@@ -201,8 +212,11 @@ class SessionService {
         const idToken = result.credential?.idToken;
         if (!idToken) throw new Error('Google sign-in failed.');
         await applyGoogleCredential(GoogleAuthProvider.credential(idToken));
+        this.photoURL = resolvePhotoURL(auth.currentUser, result.user?.photoUrl);
       } else if (!(await signInGoogleWeb(provider))) {
         return;
+      } else {
+        this.photoURL = resolvePhotoURL(auth.currentUser);
       }
     } catch (error) {
       if (AUTH_DISABLED.has(authCode(error))) {
@@ -219,16 +233,21 @@ class SessionService {
         .then(({ FirebaseAuthentication }) => FirebaseAuthentication.signOut())
         .catch(() => undefined);
     }
+    this.photoURL = null;
     await firebaseSignOut(auth);
     await this.leaveQueue().catch(() => undefined);
     if (this.queuedRoomId) await this.leaveRoom(this.queuedRoomId).catch(() => undefined);
     await this.goOffline().catch(() => undefined);
   }
 
-  public async goOnline(displayName: string): Promise<void> {
+  public async goOnline(displayName: string, photoURL?: string | null): Promise<void> {
     const playerId = requirePlayerId();
     this.displayName = clipDisplayName(displayName);
     storeDisplayName(this.displayName);
+    if (this.isGoogleUser() && auth.currentUser && !resolvePhotoURL(auth.currentUser, photoURL || this.photoURL)) {
+      await auth.currentUser.reload();
+    }
+    this.photoURL = this.isGoogleUser() ? resolvePhotoURL(auth.currentUser, photoURL || this.photoURL) : null;
     this.presenceUnsub?.();
 
     const presenceRef = ref(rtdb, `presence/${playerId}`);
@@ -239,6 +258,7 @@ class SessionService {
         username: this.displayName,
         joinedAt: Date.now(),
         signedIn: this.isGoogleUser(),
+        photoURL: this.photoURL,
       });
     };
 
@@ -312,7 +332,7 @@ class SessionService {
       status: 'waiting',
       hostUid: playerId,
       createdAt: Date.now(),
-      players: { [playerId]: { displayName: clipDisplayName(displayName), joinedAt: Date.now() } },
+      players: { [playerId]: { displayName: clipDisplayName(displayName), joinedAt: Date.now(), ready: false } },
       roles: { [playerId]: 'defenders' },
       lastMove: null,
       lastMoveBy: null,
@@ -337,10 +357,10 @@ class SessionService {
       if (room.status !== 'waiting' || Object.keys(players).length >= 2) return;
       return {
         ...room,
-        status: 'playing',
+        status: 'waiting',
         players: {
           ...players,
-          [playerId]: { displayName: clipDisplayName(displayName), joinedAt: Date.now() },
+          [playerId]: { displayName: clipDisplayName(displayName), joinedAt: Date.now(), ready: false },
         },
         roles: { ...room.roles, [playerId]: 'attackers' as PlayerRole },
       };
@@ -395,7 +415,6 @@ class SessionService {
     this.queuedRoomUnsub = this.subscribeRoom(created.roomId, {
       onUpdate: (room) => {
         if (Object.keys(room.players ?? {}).length < 2) return;
-        this.persistRoom(created.roomId);
         this.clearQueueWatch();
         remove(queueRef).catch(() => undefined);
         this.patchPresence({ roomId: created.roomId, inQueue: false }, playerId).catch(() => undefined);
@@ -418,6 +437,33 @@ class SessionService {
 
   public persistRoom(roomId: string): void {
     void onDisconnect(ref(rtdb, `rooms/${roomId}`)).cancel();
+  }
+
+  public async acceptMatch(roomId: string): Promise<void> {
+    const playerId = requirePlayerId();
+    const result = await runTransaction(ref(rtdb, `rooms/${roomId}`), (room: LiveRoom | null) => {
+      if (!room || room.status !== 'waiting') return room;
+      const players = room.players ?? {};
+      if (!players[playerId]) return;
+      const nextPlayers = {
+        ...players,
+        [playerId]: { ...players[playerId], ready: true },
+      };
+      const ids = Object.keys(nextPlayers);
+      const bothReady = ids.length === 2 && ids.every((id) => nextPlayers[id].ready);
+      return {
+        ...room,
+        players: nextPlayers,
+        status: bothReady ? 'playing' : 'waiting',
+      };
+    });
+
+    if (!result.committed || !result.snapshot.exists()) {
+      throw new Error('Match is no longer available.');
+    }
+
+    const room = result.snapshot.val() as LiveRoom;
+    if (room.status === 'playing') this.persistRoom(roomId);
   }
 
   public async sendMove(roomId: string, payload: MovePayload, board: BoardState, currentTurn: PlayerRole): Promise<void> {

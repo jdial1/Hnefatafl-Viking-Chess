@@ -27,6 +27,6 @@ export async function notifyTurn(): Promise<void> {
   }
 
   if ('Notification' in window && Notification.permission === 'granted') {
-    new Notification(TITLE, { body: BODY, icon: '/pwa-192x192.png' });
+    new Notification(TITLE, { body: BODY, icon: `${import.meta.env.BASE_URL}pwa-192x192.png` });
   }
 }

@@ -16,7 +16,7 @@ export const ROLE_META: Record<
     countClass: string;
     bgClass: string;
     turnClass: string;
-    /** Fill for the mark a fallen piece of this side leaves on the board. */
+    pulseClass: string;
     scarClass: string;
   }
 > = {
@@ -32,6 +32,7 @@ export const ROLE_META: Record<
     countClass: 'text-amber-200',
     bgClass: 'bg-amber-500/10 text-amber-300',
     turnClass: 'bg-amber-500 text-slate-950',
+    pulseClass: 'bg-amber-400',
     scarClass: 'bg-amber-400',
   },
   attackers: {
@@ -46,6 +47,7 @@ export const ROLE_META: Record<
     countClass: 'text-sky-200',
     bgClass: 'bg-sky-500/10 text-sky-300',
     turnClass: 'bg-sky-500 text-slate-950',
+    pulseClass: 'bg-sky-400',
     scarClass: 'bg-sky-400',
   },
 };

@@ -48,6 +48,23 @@ export const JUICE = {
     durationMs: 160,
     gain: 0.14,
   },
+
+  matchFound: {
+    freqStart: 196,
+    freqEnd: 392,
+    durationMs: 240,
+    gain: 0.16,
+    thumpStart: 90,
+    thumpEnd: 40,
+    thumpGain: 0.12,
+  },
+
+  turnPulse: {
+    durationMs: 1400,
+    minOpacity: 0.18,
+    maxOpacity: 0.5,
+    scale: 1.14,
+  },
 } as const;
 
 /** Displacement for a capture, louder for more kills and loudest for the king. */

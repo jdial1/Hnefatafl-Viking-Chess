@@ -3,7 +3,7 @@ import { Users, User, GoogleG } from '../icons';
 import { LobbyUser } from '../types';
 import { Modal } from './Modal';
 import { ModalHeader } from './ModalHeader';
-import { Chip } from './ui';
+import { Avatar, Chip } from './ui';
 
 interface PlayersModalProps {
   isOpen: boolean;
@@ -32,11 +32,17 @@ export const PlayersModal: React.FC<PlayersModalProps> = ({ isOpen, users, onClo
             {roster.map((user) => (
               <li key={user.id}>
                 <Chip className="w-full px-2.5 py-1.5">
-                  {user.signedIn ? (
-                    <GoogleG className="w-4 h-4 shrink-0" />
-                  ) : (
-                    <User className="w-4 h-4 text-emerald-400 shrink-0" />
-                  )}
+                  <Avatar
+                    src={user.photoURL}
+                    className="w-6 h-6 rounded-md"
+                    fallback={
+                      user.signedIn ? (
+                        <GoogleG className="w-4 h-4 shrink-0" />
+                      ) : (
+                        <User className="w-4 h-4 text-emerald-400 shrink-0" />
+                      )
+                    }
+                  />
                   <span className="text-amber-300 font-semibold truncate font-celtic">
                     {user.username || 'Unknown'}
                   </span>
