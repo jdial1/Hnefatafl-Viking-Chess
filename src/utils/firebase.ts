@@ -1,5 +1,11 @@
 import { getApp, getApps, initializeApp } from 'firebase/app';
-import { connectAuthEmulator, getAuth } from 'firebase/auth';
+import {
+  browserLocalPersistence,
+  browserPopupRedirectResolver,
+  connectAuthEmulator,
+  getAuth,
+  initializeAuth,
+} from 'firebase/auth';
 import { connectDatabaseEmulator, getDatabase } from 'firebase/database';
 import { connectFirestoreEmulator, getFirestore } from 'firebase/firestore';
 
@@ -21,7 +27,18 @@ const app = getApps().length
       databaseURL: required('VITE_FIREBASE_DATABASE_URL'),
     });
 
-export const auth = getAuth(app);
+function createAuth() {
+  try {
+    return initializeAuth(app, {
+      persistence: browserLocalPersistence,
+      popupRedirectResolver: browserPopupRedirectResolver,
+    });
+  } catch {
+    return getAuth(app);
+  }
+}
+
+export const auth = createAuth();
 export const rtdb = getDatabase(app);
 export const firestore = getFirestore(app);
 

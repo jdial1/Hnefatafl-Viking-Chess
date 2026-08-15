@@ -516,36 +516,48 @@ export default function App() {
   }, [handleRemoteMove]);
 
   useEffect(() => {
-    void sessionService.completeRedirectSignIn();
-    return sessionService.subscribeAuth(async (user) => {
-      if (!user) {
-        setLobbyUsers([]);
-        setOnlineState((prev) => ({ ...EMPTY_ONLINE, username: prev.username }));
-        return;
-      }
+    let cancelled = false;
+    let unsub = () => {};
 
-      const fallbackName = onlineStateRef.current.username || user.displayName || 'Player';
-      if (onlineStateRef.current.roomId) isReconnectingRef.current = true;
-      setOnlineState((prev) => ({
-        ...prev,
-        uid: user.uid,
-        isSignedIn: true,
-        isConnected: true,
-        username: prev.username || fallbackName,
-      }));
+    void sessionService.completeRedirectSignIn().finally(() => {
+      if (cancelled) return;
+      unsub = sessionService.subscribeAuth(async (user) => {
+        if (cancelled) return;
+        if (!user) {
+          setLobbyUsers([]);
+          setOnlineState((prev) => ({ ...EMPTY_ONLINE, username: prev.username }));
+          return;
+        }
 
-      const local = loadJson<GameStats>(STORAGE.stats, EMPTY_STATS);
-      try {
-        const profile = await statsService.ensureProfile(user, local, onlineStateRef.current.username);
-        setStats(profile.stats);
-        setOnlineState((prev) => ({ ...prev, username: profile.displayName }));
-        await sessionService.goOnline(profile.displayName);
-      } catch (error) {
-        soundEngine.playError();
-        console.error(error);
-        await sessionService.goOnline(fallbackName).catch(() => undefined);
-      }
+        const fallbackName = onlineStateRef.current.username || user.displayName || 'Player';
+        if (onlineStateRef.current.roomId) isReconnectingRef.current = true;
+        setOnlineState((prev) => ({
+          ...prev,
+          uid: user.uid,
+          isSignedIn: true,
+          isConnected: true,
+          username: prev.username || fallbackName,
+        }));
+
+        const local = loadJson<GameStats>(STORAGE.stats, EMPTY_STATS);
+        try {
+          const profile = await statsService.ensureProfile(user, local, onlineStateRef.current.username);
+          if (cancelled) return;
+          setStats(profile.stats);
+          setOnlineState((prev) => ({ ...prev, username: profile.displayName }));
+          await sessionService.goOnline(profile.displayName);
+        } catch (error) {
+          soundEngine.playError();
+          console.error(error);
+          await sessionService.goOnline(fallbackName).catch(() => undefined);
+        }
+      });
     });
+
+    return () => {
+      cancelled = true;
+      unsub();
+    };
   }, []);
 
   useEffect(() => {

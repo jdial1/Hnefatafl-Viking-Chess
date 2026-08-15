@@ -1,6 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import {
   GoogleAuthProvider,
+  browserPopupRedirectResolver,
   getRedirectResult,
   onAuthStateChanged,
   signInWithCredential,
@@ -56,6 +57,8 @@ function toMatch(roomId: string, room: LiveRoom, uid: string): MatchFound {
   };
 }
 
+let redirectSignIn: Promise<void> | null = null;
+
 class SessionService {
   private presenceUnsub: Unsubscribe | null = null;
   private queuedRoomUnsub: Unsubscribe | null = null;
@@ -70,9 +73,13 @@ class SessionService {
     return onAuthStateChanged(auth, onUser);
   }
 
-  public async completeRedirectSignIn(): Promise<void> {
-    const result = await getRedirectResult(auth);
-    if (result?.user) soundEngine.playSignIn();
+  public completeRedirectSignIn(): Promise<void> {
+    if (!redirectSignIn) {
+      redirectSignIn = getRedirectResult(auth, browserPopupRedirectResolver).then((result) => {
+        if (result?.user) soundEngine.playSignIn();
+      });
+    }
+    return redirectSignIn;
   }
 
   public async signInWithGoogle(): Promise<void> {
@@ -85,17 +92,12 @@ class SessionService {
     } else {
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: 'select_account' });
-      const useRedirect = /firefox/i.test(navigator.userAgent);
-      if (useRedirect) {
-        await signInWithRedirect(auth, provider);
-        return;
-      }
       try {
-        await signInWithPopup(auth, provider);
+        await signInWithPopup(auth, provider, browserPopupRedirectResolver);
       } catch (error) {
         const code = typeof error === 'object' && error && 'code' in error ? String(error.code) : '';
         if (code === 'auth/popup-blocked' || code === 'auth/operation-not-supported-in-this-environment') {
-          await signInWithRedirect(auth, provider);
+          await signInWithRedirect(auth, provider, browserPopupRedirectResolver);
           return;
         }
         throw error;
