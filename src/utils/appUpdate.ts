@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
+
+const REFRESH_PARAM = '_refresh';
 
 function openLatestApk() {
   const url = import.meta.env.VITE_APK_URL;
@@ -11,51 +13,74 @@ export function formatBuildId(id: string): string {
   return id.length > 7 ? id.slice(0, 7) : id;
 }
 
+function stripRefreshParam() {
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has(REFRESH_PARAM)) return;
+  url.searchParams.delete(REFRESH_PARAM);
+  const query = url.searchParams.toString();
+  window.history.replaceState(null, '', `${url.pathname}${query ? `?${query}` : ''}${url.hash}`);
+}
+
+async function clearWebCaches() {
+  if ('serviceWorker' in navigator) {
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(registrations.map((registration) => registration.unregister()));
+  }
+  if ('caches' in window) {
+    const keys = await caches.keys();
+    await Promise.all(keys.map((key) => caches.delete(key)));
+  }
+}
+
+function poisonNavigate() {
+  const url = new URL(window.location.href);
+  url.searchParams.set(REFRESH_PARAM, Date.now().toString());
+  window.location.replace(url.href);
+}
+
+async function applyWebUpdate() {
+  await clearWebCaches();
+  poisonNavigate();
+}
+
 export function useAppUpdate() {
   const [available, setAvailable] = useState(false);
   const [currentId, setCurrentId] = useState<string | null>(import.meta.env.VITE_BUILD_ID || null);
   const [latestId, setLatestId] = useState<string | null>(null);
-  const applyRef = useRef(() => {
-    if (Capacitor.isNativePlatform()) openLatestApk();
-    else window.location.reload();
-  });
 
   useEffect(() => {
+    stripRefreshParam();
     let cancelled = false;
+    const buildId = import.meta.env.VITE_BUILD_ID || null;
+    if (buildId) setCurrentId(buildId);
 
-    const offer = (apply: () => void, latest?: string) => {
+    const offer = (latest?: string) => {
       if (cancelled) return;
-      applyRef.current = apply;
       if (latest) setLatestId(latest);
       setAvailable(true);
     };
 
     void import('virtual:pwa-register').then(({ registerSW }) => {
-      const updateSW = registerSW({
+      registerSW({
         immediate: true,
         onNeedRefresh() {
-          offer(() => {
-            void updateSW(true);
-          });
+          offer();
         },
       });
     });
 
     const manifestUrl = import.meta.env.VITE_UPDATE_MANIFEST;
-    const buildId = import.meta.env.VITE_BUILD_ID;
-    if (buildId) setCurrentId(buildId);
-    if (!manifestUrl || !buildId) return () => {
-      cancelled = true;
-    };
+    if (!manifestUrl || !buildId) {
+      return () => {
+        cancelled = true;
+      };
+    }
 
     void fetch(manifestUrl, { cache: 'no-store' })
       .then((response) => (response.ok ? response.json() : null))
       .then((data: { id?: string } | null) => {
         if (!data?.id || data.id === buildId) return;
-        offer(() => {
-          if (Capacitor.isNativePlatform()) openLatestApk();
-          else window.location.reload();
-        }, data.id);
+        offer(data.id);
       })
       .catch(() => undefined);
 
@@ -69,7 +94,12 @@ export function useAppUpdate() {
     currentId,
     latestId,
     apply() {
-      applyRef.current();
+      setAvailable(false);
+      if (Capacitor.isNativePlatform()) {
+        openLatestApk();
+        return;
+      }
+      void applyWebUpdate();
     },
   };
 }

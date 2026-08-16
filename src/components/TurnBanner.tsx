@@ -4,6 +4,54 @@ import { Move, PieceCounts, PlayerRole } from '../types';
 import { ROLE_META } from '../utils/roles';
 import { Btn, Chip, ForceCounts, RoleIcon } from './ui';
 
+export function TurnPill({
+  currentTurn,
+  playerRole,
+  isSandboxMode,
+}: {
+  currentTurn: PlayerRole;
+  playerRole: PlayerRole | null;
+  isSandboxMode?: boolean;
+}) {
+  if (!playerRole && !isSandboxMode) return null;
+
+  const isMyTurn = isSandboxMode || currentTurn === playerRole;
+  const turnMeta = ROLE_META[currentTurn];
+  const turnLabel = isSandboxMode
+    ? `${turnMeta.plural} to move`
+    : isMyTurn
+      ? 'Your turn'
+      : 'Waiting';
+
+  return (
+    <div
+      className={`flex items-center justify-center gap-1.5 px-2.5 py-1 rounded-lg text-sm font-semibold min-w-0 ${
+        isMyTurn ? turnMeta.turnClass : 'bg-slate-950 text-slate-300 border border-slate-800'
+      }`}
+    >
+      <RoleIcon role={currentTurn} className="w-4 h-4 shrink-0" />
+      <span className="truncate">
+        {turnLabel}
+        {!isSandboxMode && (
+          <span className="hidden sm:inline">
+            {isMyTurn ? ` · ${turnMeta.plural}` : ` · ${turnMeta.plural} to move`}
+          </span>
+        )}
+      </span>
+    </div>
+  );
+}
+
+function EscapeChip({ className = '' }: { className?: string }) {
+  return (
+    <div className={`flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-400 text-slate-950 font-semibold text-xs shrink-0 ${className}`}>
+      <Crown className="w-3.5 h-3.5 shrink-0" />
+      <span className="hidden sm:inline">King can escape</span>
+      <span className="sm:hidden">Escape</span>
+    </div>
+  );
+}
+
 interface TurnBannerProps {
   currentTurn: PlayerRole;
   playerRole: PlayerRole | null;
@@ -29,14 +77,7 @@ export const TurnBanner: React.FC<TurnBannerProps> = ({
 }) => {
   if (!playerRole && !isSandboxMode) return null;
 
-  const isMyTurn = isSandboxMode || currentTurn === playerRole;
   const myRole = playerRole ? ROLE_META[playerRole] : null;
-  const turnMeta = ROLE_META[currentTurn];
-  const turnLabel = isSandboxMode
-    ? `${turnMeta.plural} to move`
-    : isMyTurn
-      ? 'Your turn'
-      : 'Waiting';
 
   const identity = isSandboxMode ? (
     <Chip title="Sandbox mode" className="text-amber-300 font-semibold">
@@ -56,21 +97,7 @@ export const TurnBanner: React.FC<TurnBannerProps> = ({
   );
 
   const turnPill = (
-    <div
-      className={`flex items-center justify-center gap-1.5 px-2.5 py-1 rounded-lg text-sm font-semibold ${
-        isMyTurn ? turnMeta.turnClass : 'bg-slate-950 text-slate-300 border border-slate-800'
-      }`}
-    >
-      <RoleIcon role={currentTurn} className="w-4 h-4 shrink-0" />
-      <span className="truncate">
-        {turnLabel}
-        {!isSandboxMode && (
-          <span className="hidden sm:inline">
-            {isMyTurn ? ` · ${turnMeta.plural}` : ` · ${turnMeta.plural} to move`}
-          </span>
-        )}
-      </span>
-    </div>
+    <TurnPill currentTurn={currentTurn} playerRole={playerRole} isSandboxMode={isSandboxMode} />
   );
 
   const counts = pieceCounts ? (
@@ -98,27 +125,19 @@ export const TurnBanner: React.FC<TurnBannerProps> = ({
   );
 
   return (
-    <div className="w-full mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-      <div className="flex items-center justify-center sm:contents">
-        <div className="sm:order-2 flex items-center justify-center gap-1.5 min-w-0">
-          {turnPill}
-          {isEscapeThreat && (
-            <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-400 text-slate-950 font-semibold text-xs shrink-0">
-              <Crown className="w-3.5 h-3.5 shrink-0" />
-              <span className="hidden sm:inline">King can escape</span>
-              <span className="sm:hidden">Escape</span>
-            </div>
-          )}
-        </div>
+    <div className="w-full mb-3 flex items-center justify-between gap-2 sm:gap-3">
+      <div className="flex items-center gap-2 min-w-0">
+        {identity}
+        {counts && <div className="hidden sm:flex items-center gap-3">{counts}</div>}
       </div>
-
-      <div className="flex items-center justify-between gap-2 sm:contents">
-        <div className="sm:order-1 flex items-center gap-2 min-w-0">
-          {identity}
-          {counts && <div className="hidden sm:flex items-center gap-3">{counts}</div>}
-        </div>
+      <div className="hidden sm:flex items-center justify-center gap-1.5 min-w-0">
+        {turnPill}
+        {isEscapeThreat && <EscapeChip />}
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
         {counts && <div className="flex sm:hidden items-center gap-2.5">{counts}</div>}
-        <div className="sm:order-3">{actions}</div>
+        {isEscapeThreat && <EscapeChip className="sm:hidden" />}
+        {actions}
       </div>
     </div>
   );

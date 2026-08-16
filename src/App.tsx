@@ -41,7 +41,7 @@ import { registerFcmToken, unregisterFcmToken } from './utils/fcmService';
 import { notifyTurn, requestTurnNotifications } from './utils/turnNotifier';
 import { useBackButton } from './utils/useBackButton';
 import { Header } from './components/Header';
-import { TurnBanner } from './components/TurnBanner';
+import { TurnBanner, TurnPill } from './components/TurnBanner';
 import { Board } from './components/Board';
 import { VictoryModal } from './components/VictoryModal';
 import { RulesModal } from './components/RulesModal';
@@ -874,13 +874,17 @@ export default function App() {
           />
         )}
         <Header
-          canUndo={historyStack.length > 0}
-          showMoveHistory={showMoveHistory}
           onlineState={onlineState}
           onlineCount={new Set(lobbyUsers.map((user) => user.id)).size}
-          viewMode={viewMode}
-          onUndo={handleUndo}
-          onToggleMoveHistory={() => setShowMoveHistory((prev) => !prev)}
+          mobileCenter={
+            viewMode === 'game' && (onlineState.roomId || isSandboxMode) ? (
+              <TurnPill
+                currentTurn={currentTurn}
+                playerRole={onlineState.role}
+                isSandboxMode={isSandboxMode}
+              />
+            ) : null
+          }
           onOpenRules={() => setIsRulesOpen(true)}
           onOpenSandbox={handleOpenSandbox}
           onOpenSettings={() => setIsSettingsOpen(true)}

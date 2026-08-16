@@ -1,6 +1,7 @@
 import { Volume2, VolumeX, Eye, Info, Settings, Swords, Trophy, Keyboard, RotateCcw, LogOut, ChevronDown } from '../icons';
 import React, { useEffect, useState } from 'react';
 import { GameSettings, GameStats } from '../types';
+import { formatBuildId } from '../utils/appUpdate';
 import { ROLE_META } from '../utils/roles';
 import { Modal, ModalBody } from './Modal';
 import { ModalHeader } from './ModalHeader';
@@ -219,6 +220,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             under the CC-BY 3.0 License.
           </p>
         </section>
+
+        <p className="pt-4 border-t border-slate-800 text-sm text-slate-400">
+          Version{' '}
+          <span className="font-mono text-slate-200">
+            {import.meta.env.VITE_BUILD_ID ? formatBuildId(import.meta.env.VITE_BUILD_ID) : 'local'}
+          </span>
+        </p>
       </ModalBody>
     </Modal>
   );

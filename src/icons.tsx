@@ -9,6 +9,7 @@ import {
   GiCycle,
   GiExitDoor,
   GiEyeball,
+  GiHouse,
   GiInfo,
   GiKeyboard,
   GiLightningTrio,
@@ -43,6 +44,7 @@ export const BookOpen = asIcon(GiOpenBook);
 export const Settings = asIcon(GiCog);
 export const RefreshCw = asIcon(GiCycle);
 export const Eye = asIcon(GiEyeball);
+export const House = asIcon(GiHouse);
 export const X = asIcon(GiCrossMark);
 export const Users = asIcon(GiThreeFriends);
 export const User = asIcon(GiPerson);
