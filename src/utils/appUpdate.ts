@@ -7,6 +7,7 @@ function openLatestApk() {
 }
 
 export function formatBuildId(id: string): string {
+  if (/^v?\d+\.\d+/.test(id)) return id;
   return id.length > 7 ? id.slice(0, 7) : id;
 }
 
