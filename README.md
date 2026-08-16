@@ -1,6 +1,6 @@
 # Hnefatæfl (Viking Chess)
 
-[Play in the browser](https://jdial1.github.io/Hnefatafl-Viking-Chess/) · [Download the Android APK](https://github.com/jdial1/Hnefatafl-Viking-Chess/releases/latest/download/Hnefatafl-Viking-Chess.apk)
+[Play in the browser](https://jdial1.github.io/Hnefatafl-Viking-Chess/) · [Download the Android APK](https://github.com/jdial1/Hnefatafl-Viking-Chess/releases/latest)
 
 Hnefatafl (pronounced *nef-ah-tah-fel*) is a Norse strategy game on an 11×11 board. Two unequal forces hunt different victories: a surrounded king trying to reach a corner, and a larger host trying to take him before he does.
 
@@ -20,7 +20,7 @@ On or beside the central throne the King needs a four-sided surround. On open ti
 ## Play
 
 - **Web:** [jdial1.github.io/Hnefatafl-Viking-Chess](https://jdial1.github.io/Hnefatafl-Viking-Chess/)
-- **Android:** [Hnefatafl-Viking-Chess.apk](https://github.com/jdial1/Hnefatafl-Viking-Chess/releases/latest/download/Hnefatafl-Viking-Chess.apk) — a debug build, replaced on every push to `main`. Enable install from unknown sources, then open the file.
+- **Android:** [latest release](https://github.com/jdial1/Hnefatafl-Viking-Chess/releases/latest) — a debug APK named `Hnefatafl-Viking-Chess_VERSION.apk`, published on version tags (`v*`). Enable install from unknown sources, then open the file.
 - **Online:** queue for a match as a guest. Google sign-in is optional and stores win/loss records on the account.
 - **Sandbox:** local board from the header, for learning the rules without a second player.
 
@@ -28,4 +28,4 @@ On or beside the central throne the King needs a four-sided surround. On open ti
 
 React, Vite, and TypeScript in the browser. Capacitor wraps the same build for Android. Live games use Firebase Auth, Realtime Database, and Firestore. There is no separate Node game server.
 
-Each main-branch build deploys the site to GitHub Pages and publishes the named APK on the [latest release](https://github.com/jdial1/Hnefatafl-Viking-Chess/releases/latest).
+Each main-branch build deploys the site to GitHub Pages. Pushing a `v*` tag builds the Android APK and attaches it to that GitHub release as `Hnefatafl-Viking-Chess_VERSION.apk`.

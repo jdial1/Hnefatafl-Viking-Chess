@@ -1,8 +1,8 @@
 import React from 'react';
 import { Crown, History, Flask, RefreshCw } from '../icons';
 import { Move, PieceCounts, PlayerRole } from '../types';
-import { PLAYER_ROLES, ROLE_META, forceStats } from '../utils/roles';
-import { Btn, RoleIcon } from './ui';
+import { ROLE_META } from '../utils/roles';
+import { Btn, Chip, ForceCounts, RoleIcon } from './ui';
 
 interface TurnBannerProps {
   currentTurn: PlayerRole;
@@ -39,20 +39,20 @@ export const TurnBanner: React.FC<TurnBannerProps> = ({
       : 'Waiting';
 
   const identity = isSandboxMode ? (
-    <div title="Sandbox mode" className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-amber-500/10 text-amber-300 text-xs font-semibold">
+    <Chip title="Sandbox mode" className="text-amber-300 font-semibold">
       <Flask className="w-3.5 h-3.5 text-amber-400 shrink-0" />
       <span>Sandbox</span>
-    </div>
+    </Chip>
   ) : myRole && playerRole ? (
-    <div title={`You are ${myRole.plural}`} className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-semibold ${myRole.bgClass}`}>
+    <Chip title={`You are ${myRole.plural}`} className={`font-semibold ${myRole.bgClass}`}>
       <RoleIcon role={playerRole} className="w-3.5 h-3.5 shrink-0" />
       <span>You</span>
-    </div>
+    </Chip>
   ) : (
-    <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-950 text-slate-300 text-xs font-medium">
+    <Chip className="text-slate-300">
       <Crown className="w-3.5 h-3.5 text-amber-400 shrink-0" />
       <span>Local</span>
-    </div>
+    </Chip>
   );
 
   const turnPill = (
@@ -73,22 +73,9 @@ export const TurnBanner: React.FC<TurnBannerProps> = ({
     </div>
   );
 
-  const counts = pieceCounts
-    ? PLAYER_ROLES.map((role) => {
-        const { meta, live, lost, cap } = forceStats(role, pieceCounts);
-        return (
-          <div key={role} className={`flex items-center gap-1 ${meta.mutedClass}`} title={`${meta.plural} ${live}/${cap}`}>
-            <RoleIcon role={role} className={`w-3.5 h-3.5 ${meta.colorClass}`} />
-            <span className={`font-mono font-semibold text-sm ${meta.countClass}`}>{live}</span>
-            <span className="hidden sm:inline font-mono text-xs text-slate-400">/{cap}</span>
-            {role === 'defenders' && pieceCounts.hasKing && (
-              <Crown className="w-3.5 h-3.5 text-amber-300" />
-            )}
-            {lost > 0 && <span className="font-mono text-xs text-rose-300">-{lost}</span>}
-          </div>
-        );
-      })
-    : null;
+  const counts = pieceCounts ? (
+    <ForceCounts pieceCounts={pieceCounts} capClassName="hidden sm:inline font-mono text-xs text-slate-400" />
+  ) : null;
 
   const actions = (
     <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">

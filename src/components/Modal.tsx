@@ -26,6 +26,16 @@ export function ModalBody({
   return <div className={`modal-body ${className}`}>{children}</div>;
 }
 
+export function ModalActions({
+  className = '',
+  children,
+}: {
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return <div className={`flex flex-col gap-2 shrink-0 ${className}`}>{children}</div>;
+}
+
 export const Modal: React.FC<ModalProps> = ({
   isOpen,
   onClose,

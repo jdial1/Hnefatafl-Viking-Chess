@@ -28,6 +28,25 @@ interface BoardProps {
 const cellKey = (r: number, c: number) => `${r},${c}`;
 const positionSet = (positions: Position[]) => new Set(positions.map(({ r, c }) => cellKey(r, c)));
 
+export function SquareMarks({ r, c, occupied }: { r: number; c: number; occupied: boolean }) {
+  if (isCorner(r, c)) {
+    return (
+      <div className="absolute inset-0 flex items-center justify-center bg-cyan-950/60 rounded-md sm:rounded-lg overflow-hidden">
+        <Shield className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-cyan-400 opacity-80" />
+      </div>
+    );
+  }
+  if (isThrone(r, c)) {
+    return (
+      <div className="absolute inset-0 flex items-center justify-center bg-amber-950/50 rounded-md sm:rounded-lg overflow-hidden">
+        <Crown className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400/70" />
+      </div>
+    );
+  }
+  if (!occupied) return <div className="w-1 h-1 rounded-full bg-slate-700/40" />;
+  return null;
+}
+
 export const Board: React.FC<BoardProps> = memo(({
   board,
   selectedPos,
@@ -262,8 +281,6 @@ export const Board: React.FC<BoardProps> = memo(({
                 const isLandingCell = Boolean(lastMove?.to && lastMove.to.r === r && lastMove.to.c === c);
                 const isAlertKing = isEscapeThreat && piece?.type === 'king';
                 const isLast = lastMoveSet.has(cellKey(r, c));
-                const isCornerSquare = isCorner(r, c);
-                const isThroneSquare = isThrone(r, c);
                 const ghostPiece = lastMove?.piece || (lastMove?.to ? board[lastMove.to.r]?.[lastMove.to.c] : null);
                 const isGhostCell = Boolean(lastMove?.from && lastMove.from.r === r && lastMove.from.c === c && !piece && ghostPiece);
                 const isTouched = touchingCell?.r === r && touchingCell?.c === c;
@@ -298,17 +315,7 @@ export const Board: React.FC<BoardProps> = memo(({
                         : ''
                     }`}
                   >
-                    {!isCornerSquare && !isThroneSquare && !piece && <div className="w-1 h-1 rounded-full bg-slate-700/40" />}
-                    {isCornerSquare && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-cyan-950/60 rounded-md sm:rounded-lg overflow-hidden">
-                        <Shield className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-cyan-400 opacity-80" />
-                      </div>
-                    )}
-                    {isThroneSquare && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-amber-950/50 rounded-md sm:rounded-lg overflow-hidden">
-                        <Crown className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400/70" />
-                      </div>
-                    )}
+                    <SquareMarks r={r} c={c} occupied={Boolean(piece)} />
                     {scar && (
                       <div
                         aria-hidden

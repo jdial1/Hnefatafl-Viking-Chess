@@ -1,5 +1,5 @@
 import React from 'react';
-import { Modal } from './Modal';
+import { Modal, ModalActions, ModalBody } from './Modal';
 import { ModalHeader } from './ModalHeader';
 import { Btn } from './ui';
 
@@ -21,17 +21,19 @@ export function ResignModal({
         closeAriaLabel="Stay in the match"
         titleClassName="text-rose-300"
       />
-      <p className="text-sm text-slate-300 leading-6 mb-6">
-        Are you sure? This cannot be undone.
-      </p>
-      <div className="flex flex-col gap-2">
+      <ModalBody>
+        <p className="text-sm text-slate-300 leading-6 mb-6">
+          Are you sure? This cannot be undone.
+        </p>
+      </ModalBody>
+      <ModalActions>
         <Btn onClick={onCancel} variant="primary" size="lg" className="w-full">
           Stay
         </Btn>
-        <Btn onClick={onConfirm} variant="ghost" className="w-full hover:bg-rose-950 hover:text-rose-300">
+        <Btn onClick={onConfirm} variant="danger" className="w-full">
           Resign
         </Btn>
-      </div>
+      </ModalActions>
     </Modal>
   );
 }

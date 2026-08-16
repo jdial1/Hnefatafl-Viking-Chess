@@ -52,7 +52,7 @@ import { ResignModal } from './components/ResignModal';
 import { MoveHistory } from './components/MoveHistory';
 import { HomeView } from './components/HomeView';
 import { UpdateBanner } from './components/UpdateBanner';
-import { Btn, ViewErrorBoundary, celticKnotClass } from './components/ui';
+import { Btn, Panel, ViewErrorBoundary } from './components/ui';
 import { useAppUpdate } from './utils/appUpdate';
 
 const STORAGE = {
@@ -78,7 +78,7 @@ function loadJson<T>(key: string, fallback: T): T {
 function playCaptureFeedback(killedKing: boolean) {
   soundEngine.playCapture();
   if (typeof navigator !== 'undefined' && navigator.vibrate) {
-    navigator.vibrate(killedKing ? [30, 50, 30, 50, 80] : [20, 40, 20]);
+    navigator.vibrate(killedKing ? [...JUICE.haptic.kingCapture] : [...JUICE.haptic.capture]);
   }
 }
 
@@ -906,11 +906,9 @@ export default function App() {
               onSignIn={() => void handleSignIn()}
             />
           ) : boardBroken ? (
-            <section
-              className={celticKnotClass(
-                false,
-                'bg-slate-900 border border-slate-800 rounded-xl px-6 py-10 sm:px-8 flex flex-col gap-5 w-full min-w-0'
-              )}
+            <Panel
+              knot
+              className="px-6 py-10 sm:px-8 flex flex-col gap-5 w-full min-w-0"
             >
               <div className="space-y-3 max-w-prose">
                 <h2 className="text-xl sm:text-2xl text-slate-100 font-semibold leading-tight">This match could not be restored</h2>
@@ -919,16 +917,16 @@ export default function App() {
                 </p>
               </div>
               <div className="flex flex-col gap-3 w-full min-w-0">
-                <Btn onClick={handleGoHome} variant="primary" className="w-full min-h-14 text-sm sm:text-base font-bold">
+                <Btn onClick={handleGoHome} variant="primary" size="lg" className="w-full">
                   Return home
                 </Btn>
                 {onlineState.roomId && (
-                  <Btn onClick={handleResignRequest} variant="ghost" className="w-full min-h-14 hover:bg-rose-950 hover:text-rose-300">
+                  <Btn onClick={handleResignRequest} variant="danger" size="lg" className="w-full">
                     Resign
                   </Btn>
                 )}
               </div>
-            </section>
+            </Panel>
           ) : (
             <>
               {(onlineState.roomId || isSandboxMode) && (

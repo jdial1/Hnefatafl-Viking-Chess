@@ -2,7 +2,7 @@ import { RefreshCw } from '../icons';
 import React from 'react';
 import { GameStatus } from '../types';
 import { ROLE_META } from '../utils/roles';
-import { Modal } from './Modal';
+import { Modal, ModalActions, ModalBody } from './Modal';
 import { ModalHeader } from './ModalHeader';
 import { Btn, RoleIcon } from './ui';
 
@@ -37,24 +37,21 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
         closeAriaLabel="Close victory modal"
       />
 
-      <p className="text-sm text-slate-300 leading-6 mb-6">
-        The game ended after <strong className="text-slate-100">{totalMoves} moves</strong> under Fetlar 11x11 rules.
-      </p>
+      <ModalBody>
+        <p className="text-sm text-slate-300 leading-6 mb-6">
+          The game ended after <strong className="text-slate-100">{totalMoves} moves</strong> under Fetlar 11x11 rules.
+        </p>
+      </ModalBody>
 
-      <div className="flex flex-col gap-2">
+      <ModalActions>
         <Btn id="btn-same-rematch" onClick={onReplay} variant="primary" size="lg" className="w-full">
           <RefreshCw className="w-4 h-4" />
           Play Again
         </Btn>
-        <Btn
-          id="btn-review-board"
-          onClick={onClose}
-          variant="ghost"
-          className="w-full"
-        >
+        <Btn id="btn-review-board" onClick={onClose} variant="ghost" className="w-full">
           Review Board State
         </Btn>
-      </div>
+      </ModalActions>
     </Modal>
   );
 };

@@ -90,9 +90,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               {onResetStats && stats.totalGames > 0 && (
                 <Btn
                   onClick={onResetStats}
-                  variant="ghost"
+                  variant="danger"
                   size="sm"
-                  className="text-slate-400 hover:text-rose-300"
                   title="Reset Statistics"
                 >
                   <RotateCcw className="w-3 h-3" />
@@ -178,7 +177,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             hint={account.email || account.name}
           >
             {onSignOut && (
-              <Btn onClick={onSignOut} variant="ghost" size="sm" className="text-slate-400 hover:text-rose-300">
+              <Btn onClick={onSignOut} variant="danger" size="sm">
                 <LogOut className="w-3.5 h-3.5" />
                 Sign out
               </Btn>
@@ -197,18 +196,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <ChevronDown className={`w-4 h-4 text-amber-300 shrink-0 transition-transform ${shortcutsOpen ? 'rotate-180' : ''}`} />
           </button>
           {shortcutsOpen && (
-            <table className="w-full text-sm font-mono text-slate-300">
-              <tbody>
-                {SHORTCUTS.map(([key, action]) => (
-                  <tr key={key}>
-                    <td className="py-1 pr-3 whitespace-nowrap">
-                      <Kbd>{key}</Kbd>
-                    </td>
-                    <td>{action}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <MetricRow
+              className="border-y border-slate-800"
+              items={SHORTCUTS.map(([key, action]) => ({
+                label: action,
+                value: <Kbd>{key}</Kbd>,
+                valueClassName: 'text-sm font-normal',
+              }))}
+            />
           )}
         </section>
 

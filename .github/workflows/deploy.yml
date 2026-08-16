@@ -3,6 +3,8 @@ name: Build and deploy
 on:
   push:
     branches: [main]
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 permissions:
@@ -11,11 +13,12 @@ permissions:
   id-token: write
 
 concurrency:
-  group: deploy
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   web:
+    if: github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && !startsWith(github.ref, 'refs/tags/'))
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -38,7 +41,7 @@ jobs:
           VITE_FIREBASE_VAPID_KEY: ${{ secrets.VITE_FIREBASE_VAPID_KEY }}
           VITE_BUILD_ID: ${{ github.sha }}
           VITE_UPDATE_MANIFEST: https://jdial1.github.io/${{ github.event.repository.name }}/version.json
-          VITE_APK_URL: https://github.com/${{ github.repository }}/releases/latest/download/Hnefatafl-Viking-Chess.apk
+          VITE_APK_URL: https://github.com/${{ github.repository }}/releases/latest
         run: |
           printf '%s\n' \
             "VITE_FIREBASE_API_KEY=$VITE_FIREBASE_API_KEY" \
@@ -67,6 +70,7 @@ jobs:
         uses: actions/deploy-pages@v4
 
   apk:
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -91,7 +95,7 @@ jobs:
           VITE_FIREBASE_VAPID_KEY: ${{ secrets.VITE_FIREBASE_VAPID_KEY }}
           VITE_BUILD_ID: ${{ github.sha }}
           VITE_UPDATE_MANIFEST: https://jdial1.github.io/${{ github.event.repository.name }}/version.json
-          VITE_APK_URL: https://github.com/${{ github.repository }}/releases/latest/download/Hnefatafl-Viking-Chess.apk
+          VITE_APK_URL: https://github.com/${{ github.repository }}/releases/latest
         run: |
           printf '%s\n' \
             "VITE_FIREBASE_API_KEY=$VITE_FIREBASE_API_KEY" \
@@ -123,24 +127,31 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
       - name: Name APK
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk Hnefatafl-Viking-Chess.apk
+        id: apk
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          NAME="${{ github.event.repository.name }}_${VERSION}.apk"
+          cp android/app/build/outputs/apk/debug/app-debug.apk "$NAME"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
       - name: Signing fingerprints
         run: keytool -list -v -keystore android/app/debug.keystore -alias androiddebugkey -storepass android
       - uses: actions/upload-artifact@v4
         with:
-          name: Hnefatafl-Viking-Chess
-          path: Hnefatafl-Viking-Chess.apk
-      - name: Publish latest APK
+          name: ${{ steps.apk.outputs.name }}
+          path: ${{ steps.apk.outputs.name }}
+      - name: Publish release APK
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APK_NAME: ${{ steps.apk.outputs.name }}
+          VERSION: ${{ steps.apk.outputs.version }}
         run: |
-          NOTES="Debug APK from ${GITHUB_SHA::7}. Sideload on Android (allow unknown sources). Replaced on every main build."
-          if gh release view latest >/dev/null 2>&1; then
-            gh release upload latest Hnefatafl-Viking-Chess.apk --clobber
-            gh release edit latest --notes "$NOTES"
+          NOTES="Debug APK ${VERSION} from ${GITHUB_SHA::7}. Sideload on Android (allow unknown sources)."
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "$APK_NAME" --clobber
           else
-            gh release create latest Hnefatafl-Viking-Chess.apk \
-              --title "Latest Android build" \
+            gh release create "$GITHUB_REF_NAME" "$APK_NAME" \
+              --title "${{ github.event.repository.name }} ${VERSION}" \
               --notes "$NOTES" \
               --latest
           fi

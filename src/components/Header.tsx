@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Crown, History, RotateCcw, BookOpen, Settings, Users, RefreshCw, Flask, GoogleG, Menu } from '../icons';
+import { Crown, History, RotateCcw, BookOpen, Settings, Users, RefreshCw, Flask, Menu } from '../icons';
 import { OnlineMatchState } from '../types';
 import { Avatar, Btn, Chip } from './ui';
 
@@ -35,9 +35,7 @@ function UsernameChip({
 }) {
   return (
     <Chip title={`Player Name: ${name}`} className={className}>
-      {signedIn && (
-        <Avatar src={photoURL} fallback={<GoogleG className="w-4 h-4 shrink-0" />} />
-      )}
+      {signedIn && <Avatar src={photoURL} signedIn />}
       <span className="text-amber-300 font-semibold truncate font-celtic">{name}</span>
       {onRandomize && (
         <Btn

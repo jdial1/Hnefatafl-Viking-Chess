@@ -1,7 +1,7 @@
 import React from 'react';
 import { RefreshCw } from '../icons';
 import { formatBuildId } from '../utils/appUpdate';
-import { Btn } from './ui';
+import { Btn, Panel } from './ui';
 
 export function UpdateBanner({
   onUpdate,
@@ -17,7 +17,7 @@ export function UpdateBanner({
 
   return (
     <div className="w-full mb-3">
-      <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2">
+      <Panel tone="amber" className="flex items-center justify-between gap-3 px-3 py-2">
         <p className="text-sm text-amber-200 leading-snug">
           A newer version of Hnefatæfl is available.
           {current && latest ? (
@@ -32,7 +32,7 @@ export function UpdateBanner({
           <RefreshCw className="w-3.5 h-3.5" />
           Update
         </Btn>
-      </div>
+      </Panel>
     </div>
   );
 }

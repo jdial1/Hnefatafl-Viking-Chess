@@ -65,6 +65,11 @@ export const JUICE = {
     maxOpacity: 0.5,
     scale: 1.14,
   },
+
+  haptic: {
+    capture: [20, 40, 20],
+    kingCapture: [30, 50, 30, 50, 80],
+  },
 } as const;
 
 /** Displacement for a capture, louder for more kills and loudest for the king. */

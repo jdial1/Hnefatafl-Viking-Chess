@@ -1,5 +1,5 @@
 import React from 'react';
-import { Users, User, GoogleG } from '../icons';
+import { Users } from '../icons';
 import { LobbyUser } from '../types';
 import { Modal, ModalBody } from './Modal';
 import { ModalHeader } from './ModalHeader';
@@ -34,14 +34,8 @@ export const PlayersModal: React.FC<PlayersModalProps> = ({ isOpen, users, onClo
                 <Chip className="w-full px-2.5 py-1.5">
                   <Avatar
                     src={user.photoURL}
+                    signedIn={user.signedIn}
                     className="w-6 h-6 rounded-md"
-                    fallback={
-                      user.signedIn ? (
-                        <GoogleG className="w-4 h-4 shrink-0" />
-                      ) : (
-                        <User className="w-4 h-4 text-emerald-400 shrink-0" />
-                      )
-                    }
                   />
                   <span className="text-amber-300 font-semibold truncate">
                     {user.username || 'Unknown'}

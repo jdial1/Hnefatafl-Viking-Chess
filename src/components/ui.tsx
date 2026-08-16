@@ -1,14 +1,14 @@
 import React from 'react';
-import { GoogleG, Shield, Swords } from '../icons';
-import { PlayerRole } from '../types';
-import { PLAYER_ROLES, ROLE_META } from '../utils/roles';
+import { Crown, GoogleG, Shield, Swords, User } from '../icons';
+import { PieceCounts, PlayerRole } from '../types';
+import { PLAYER_ROLES, ROLE_META, forceStats } from '../utils/roles';
 
 type Tone = 'default' | 'muted' | 'amber';
-type BtnVariant = 'primary' | 'secondary' | 'ghost' | 'amber' | 'success';
+type BtnVariant = 'primary' | 'secondary' | 'ghost' | 'amber' | 'success' | 'danger';
 type BtnSize = 'icon' | 'sm' | 'md' | 'lg';
 
 const TONE: Record<Tone, string> = {
-  default: 'bg-slate-950/70 border-slate-800',
+  default: 'bg-slate-900 border-slate-800',
   muted: 'bg-slate-950/35 border-slate-800/60',
   amber: 'bg-amber-500/10 border-slate-800',
 };
@@ -19,13 +19,14 @@ const BTN_VARIANT: Record<BtnVariant, string> = {
   ghost: 'bg-transparent hover:bg-slate-800 text-slate-300 border border-transparent',
   amber: 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-transparent',
   success: 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold',
+  danger: 'bg-transparent hover:bg-rose-950 text-slate-300 hover:text-rose-300 border border-transparent',
 };
 
 const BTN_SIZE: Record<BtnSize, string> = {
   icon: 'p-1.5',
   sm: 'px-2 py-1.5 text-xs',
   md: 'px-3 py-2 text-sm',
-  lg: 'px-5 py-3 text-sm',
+  lg: 'px-5 py-3 min-h-14 text-sm sm:text-base',
 };
 
 export function celticKnotClass(active = false, className = '') {
@@ -34,14 +35,19 @@ export function celticKnotClass(active = false, className = '') {
 
 export function Panel({
   tone = 'default',
-  className = '',
+  knot = false,
+  knotActive = false,
+  className = 'p-3.5',
   children,
 }: {
   tone?: Tone;
+  knot?: boolean;
+  knotActive?: boolean;
   className?: string;
   children: React.ReactNode;
 }) {
-  return <div className={`rounded-xl border p-3.5 ${TONE[tone]} ${className}`}>{children}</div>;
+  const classes = `rounded-xl border ${TONE[tone]} ${className}`;
+  return <div className={knot ? celticKnotClass(knotActive, classes) : classes}>{children}</div>;
 }
 
 export function Chip({
@@ -66,16 +72,22 @@ export function Chip({
 export function Avatar({
   src,
   fallback,
+  signedIn,
   className = 'w-5 h-5 rounded-md',
+  iconClassName = 'w-4 h-4 shrink-0',
 }: {
   src?: string | null;
-  fallback: React.ReactNode;
+  fallback?: React.ReactNode;
+  signedIn?: boolean;
   className?: string;
+  iconClassName?: string;
 }) {
   if (src) {
     return <img src={src} alt="" referrerPolicy="no-referrer" className={`object-cover shrink-0 ${className}`} />;
   }
-  return <>{fallback}</>;
+  if (fallback) return <>{fallback}</>;
+  if (signedIn) return <GoogleG className={iconClassName} />;
+  return <User className={`${iconClassName} text-emerald-400`} />;
 }
 
 export function Btn({
@@ -222,6 +234,39 @@ export function Kbd({ children }: { children: React.ReactNode }) {
 export function RoleIcon({ role, className = '' }: { role: PlayerRole; className?: string }) {
   if (role === 'defenders') return <Shield className={className} />;
   return <Swords className={className} />;
+}
+
+export function ForceCounts({
+  pieceCounts,
+  capClassName = 'font-mono text-xs text-slate-400',
+  className = '',
+}: {
+  pieceCounts: PieceCounts;
+  capClassName?: string;
+  className?: string;
+}) {
+  return (
+    <>
+      {PLAYER_ROLES.map((role) => {
+        const { meta, live, lost, cap } = forceStats(role, pieceCounts);
+        return (
+          <div
+            key={role}
+            className={`flex items-center gap-1.5 ${meta.mutedClass} ${className}`}
+            title={`${meta.plural} ${live}/${cap}`}
+          >
+            <RoleIcon role={role} className={`w-3.5 h-3.5 ${meta.colorClass}`} />
+            <span className={`font-mono font-semibold ${meta.countClass}`}>{live}</span>
+            <span className={capClassName}>/{cap}</span>
+            {role === 'defenders' && pieceCounts.hasKing && (
+              <Crown className="w-3.5 h-3.5 text-amber-300" />
+            )}
+            {lost > 0 && <span className="font-mono text-xs text-rose-300">-{lost}</span>}
+          </div>
+        );
+      })}
+    </>
+  );
 }
 
 export function RoleSummary({
