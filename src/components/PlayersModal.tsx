@@ -12,7 +12,7 @@ interface PlayersModalProps {
 }
 
 export const PlayersModal: React.FC<PlayersModalProps> = ({ isOpen, users, onClose }) => {
-  const roster = [...users].sort((a, b) => a.username.localeCompare(b.username));
+  const roster = [...users].sort((a, b) => (a.username || '').localeCompare(b.username || ''));
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} ariaLabel="Connected players" maxWidth="sm">

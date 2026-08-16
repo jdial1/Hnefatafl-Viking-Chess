@@ -327,6 +327,7 @@ class SessionService {
             .map(([deviceId, user]) => ({
               ...user,
               id: deviceId,
+              username: typeof user.username === 'string' ? user.username : '',
             }))
         );
       },
