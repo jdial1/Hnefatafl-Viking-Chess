@@ -453,10 +453,12 @@ export default function App() {
   }, []);
 
   const handleRandomizeName = useCallback(() => {
-    const name = generateRandomNorseName(lobbyUsers.map((user) => user.username));
+    const name = generateRandomNorseName(
+      [...lobbyUsers.map((user) => user.username), onlineState.username].filter(Boolean)
+    );
     void handleSetUsername(name);
     return name;
-  }, [lobbyUsers, handleSetUsername]);
+  }, [lobbyUsers, onlineState.username, handleSetUsername]);
 
   const handlePlayAsGuest = useCallback(async () => {
     try {

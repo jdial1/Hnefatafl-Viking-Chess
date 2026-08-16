@@ -3,7 +3,7 @@ import { Users } from '../icons';
 import { LobbyUser } from '../types';
 import { Modal, ModalBody } from './Modal';
 import { ModalHeader } from './ModalHeader';
-import { Avatar, Chip } from './ui';
+import { Avatar } from './ui';
 
 interface PlayersModalProps {
   isOpen: boolean;
@@ -28,20 +28,21 @@ export const PlayersModal: React.FC<PlayersModalProps> = ({ isOpen, users, onClo
         {roster.length === 0 ? (
           <div className="py-8 text-sm text-slate-300">The hall is empty.</div>
         ) : (
-          <ul className="flex flex-col gap-2">
+          <ul className="flex flex-col gap-1">
             {roster.map((user) => (
-              <li key={user.id}>
-                <Chip className="w-full px-2.5 py-1.5">
-                  <Avatar
-                    src={user.photoURL}
-                    signedIn={user.signedIn}
-                    className="w-6 h-6 rounded-md"
-                  />
-                  <span className="text-amber-300 font-semibold truncate">
-                    {user.username || 'Unknown'}
-                    {user.signedIn && user.googleInitials ? ` (${user.googleInitials})` : ''}
-                  </span>
-                </Chip>
+              <li
+                key={user.id}
+                className="flex items-center gap-2 px-2 py-1 rounded-lg bg-slate-950 border border-slate-800 min-w-0"
+              >
+                <Avatar
+                  src={user.photoURL}
+                  signedIn={user.signedIn}
+                  className="w-5 h-5 rounded-md"
+                />
+                <span className="text-sm text-amber-300 font-semibold truncate leading-tight">
+                  {user.username || 'Unknown'}
+                  {user.signedIn && user.googleInitials ? ` (${user.googleInitials})` : ''}
+                </span>
               </li>
             ))}
           </ul>
