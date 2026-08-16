@@ -26,33 +26,26 @@ import {
 } from 'firebase/database';
 import {
   BoardState,
+  GameStatus,
   LiveRoom,
   LobbyUser,
   MatchFound,
+  Move,
   MovePayload,
   PlayerRole,
   RoomResult,
+  Scar,
 } from '../types';
 import { auth, rtdb } from './firebase';
-import { hydrateBoard, serializeBoard } from './hnefataflEngine';
+import { createInitialBoard, hydrateBoard, serializeBoard } from './hnefataflEngine';
 import { hydrateMove } from './sagaVoice';
 import { clipDisplayName, generateRandomNorseName } from './norseNames';
 import { soundEngine } from './soundEngine';
 
-const DEVICE_KEY = 'hnefatafl_device_id';
 const NAME_KEY = 'hnefatafl_display_name';
 const POPUP_FALLBACK = new Set(['auth/popup-blocked', 'auth/operation-not-supported-in-this-environment']);
 const LINK_TAKEN = new Set(['auth/credential-already-in-use', 'auth/email-already-in-use']);
 const AUTH_DISABLED = new Set(['auth/admin-restricted-operation', 'auth/operation-not-allowed']);
-
-export function getDeviceId(): string {
-  let id = localStorage.getItem(DEVICE_KEY);
-  if (!id) {
-    id = crypto.randomUUID();
-    localStorage.setItem(DEVICE_KEY, id);
-  }
-  return id;
-}
 
 export function getStoredDisplayName(): string {
   return localStorage.getItem(NAME_KEY) ?? '';
@@ -95,13 +88,22 @@ function hydrateRoom(room: LiveRoom): LiveRoom {
           moveRecord: room.lastMove.moveRecord ? hydrateMove(room.lastMove.moveRecord) : undefined,
         }
       : room.lastMove,
-    state: room.state ? { ...room.state, board: hydrateBoard(room.state.board) } : room.state,
+    state: room.state
+      ? {
+          ...room.state,
+          board: hydrateBoard(room.state.board),
+          moveHistory: Array.isArray(room.state.moveHistory)
+            ? room.state.moveHistory.map(hydrateMove)
+            : room.state.moveHistory,
+        }
+      : room.state,
   };
 }
 
 function requirePlayerId(): string {
-  if (!auth.currentUser) throw new Error('Session is not ready.');
-  return getDeviceId();
+  const uid = auth.currentUser?.uid;
+  if (!uid) throw new Error('Session is not ready.');
+  return uid;
 }
 
 function authCode(error: unknown): string {
@@ -183,7 +185,7 @@ class SessionService {
   }
 
   public playerId(): string {
-    return getDeviceId();
+    return requirePlayerId();
   }
 
   public isGoogleUser(): boolean {
@@ -258,11 +260,11 @@ class SessionService {
         .then(({ FirebaseAuthentication }) => FirebaseAuthentication.signOut())
         .catch(() => undefined);
     }
+    const uid = auth.currentUser?.uid;
     this.photoURL = null;
-    await firebaseSignOut(auth);
     await this.leaveQueue().catch(() => undefined);
-    if (this.queuedRoomId) await this.leaveRoom(this.queuedRoomId).catch(() => undefined);
-    await this.goOffline().catch(() => undefined);
+    await this.goOffline(uid).catch(() => undefined);
+    await firebaseSignOut(auth);
   }
 
   public async goOnline(displayName: string, photoURL?: string | null): Promise<void> {
@@ -295,10 +297,11 @@ class SessionService {
     });
   }
 
-  public async goOffline(): Promise<void> {
+  public async goOffline(uid?: string | null): Promise<void> {
     this.presenceUnsub?.();
     this.presenceUnsub = null;
-    await remove(ref(rtdb, `presence/${getDeviceId()}`));
+    const id = uid ?? auth.currentUser?.uid;
+    if (id) await remove(ref(rtdb, `presence/${id}`));
   }
 
   public async setDisplayName(name: string): Promise<string> {
@@ -347,7 +350,7 @@ class SessionService {
     });
   }
 
-  private async patchPresence(patch: Record<string, unknown>, playerId = getDeviceId()): Promise<void> {
+  private async patchPresence(patch: Record<string, unknown>, playerId = requirePlayerId()): Promise<void> {
     await update(ref(rtdb, `presence/${playerId}`), patch);
   }
 
@@ -402,12 +405,13 @@ class SessionService {
   }
 
   public async leaveRoom(roomId: string): Promise<void> {
-    const playerId = getDeviceId();
+    const playerId = requirePlayerId();
     await runTransaction(ref(rtdb, `rooms/${roomId}`), (room: LiveRoom | null) => {
       if (!room) return room;
+      if (room.status !== 'waiting') return room;
       const players = { ...room.players };
       delete players[playerId];
-      if (Object.keys(players).length === 0 || room.status === 'waiting') return null;
+      if (Object.keys(players).length === 0) return null;
       const roles = { ...room.roles };
       delete roles[playerId];
       return { ...room, players, roles };
@@ -455,7 +459,8 @@ class SessionService {
   public async leaveQueue(): Promise<void> {
     const queuedRoomId = this.queuedRoomId;
     this.clearQueueWatch();
-    const playerId = getDeviceId();
+    const playerId = auth.currentUser?.uid;
+    if (!playerId) return;
     await remove(ref(rtdb, `queue/${playerId}`));
     await this.patchPresence({ inQueue: false }, playerId);
     if (queuedRoomId) await this.leaveRoom(queuedRoomId);
@@ -477,10 +482,23 @@ class SessionService {
       };
       const ids = Object.keys(nextPlayers);
       const bothReady = ids.length === 2 && ids.every((id) => nextPlayers[id].ready);
+      const stateAt = Date.now();
       return {
         ...room,
         players: nextPlayers,
         status: bothReady ? 'playing' : 'waiting',
+        ...(bothReady
+          ? {
+              state: {
+                board: serializeBoard(createInitialBoard()),
+                currentTurn: 'defenders' as PlayerRole,
+                moveHistory: [],
+                scars: [],
+                gameStatus: 'playing' as GameStatus,
+                stateAt,
+              },
+            }
+          : {}),
       };
     });
 
@@ -492,7 +510,18 @@ class SessionService {
     if (room.status === 'playing') this.persistRoom(roomId);
   }
 
-  public async sendMove(roomId: string, payload: MovePayload, board: BoardState, currentTurn: PlayerRole): Promise<void> {
+  public async sendMove(
+    roomId: string,
+    payload: MovePayload,
+    state: {
+      board: BoardState;
+      currentTurn: PlayerRole;
+      moveHistory: Move[];
+      scars: Scar[];
+      gameStatus: GameStatus;
+    },
+    stateAt = Date.now()
+  ): Promise<number> {
     const playerId = requirePlayerId();
     await update(ref(rtdb, `rooms/${roomId}`), {
       lastMove: {
@@ -500,30 +529,78 @@ class SessionService {
         board: payload.board ? serializeBoard(payload.board) : payload.board,
       },
       lastMoveBy: playerId,
-      lastMoveAt: Date.now(),
-      state: { board: serializeBoard(board), currentTurn },
+      lastMoveAt: stateAt,
+      state: {
+        board: serializeBoard(state.board),
+        currentTurn: state.currentTurn,
+        moveHistory: state.moveHistory,
+        scars: state.scars,
+        gameStatus: state.gameStatus,
+        stateAt,
+      },
     });
+    return stateAt;
   }
 
-  public async sendState(roomId: string, board: BoardState, currentTurn: PlayerRole): Promise<void> {
-    await update(ref(rtdb, `rooms/${roomId}`), { state: { board: serializeBoard(board), currentTurn } });
-  }
-
-  public async restartGame(roomId: string): Promise<void> {
+  public async restartGame(roomId: string): Promise<number> {
+    const stateAt = Date.now();
+    const board = createInitialBoard();
     await update(ref(rtdb, `rooms/${roomId}`), {
-      restartAt: Date.now(),
+      restartAt: stateAt,
       lastMove: null,
       lastMoveBy: null,
       lastMoveAt: null,
       result: null,
       status: 'playing',
+      state: {
+        board: serializeBoard(board),
+        currentTurn: 'defenders',
+        moveHistory: [],
+        scars: [],
+        gameStatus: 'playing',
+        stateAt,
+      },
     });
+    return stateAt;
   }
 
   public async writeResult(roomId: string, result: RoomResult): Promise<void> {
     await runTransaction(ref(rtdb, `rooms/${roomId}`), (room: LiveRoom | null) => {
       if (!room || room.result) return room;
-      return { ...room, status: 'finished', result };
+      const stateAt = Date.now();
+      const gameStatus: GameStatus =
+        result.winner === 'attackers' ? 'attackers_win' : result.winner === 'defenders' ? 'defenders_win' : 'draw';
+      return {
+        ...room,
+        status: 'finished' as const,
+        result,
+        state: room.state
+          ? { ...room.state, gameStatus, stateAt }
+          : { board: serializeBoard(createInitialBoard()), currentTurn: 'defenders' as PlayerRole, gameStatus, stateAt },
+      };
+    });
+  }
+
+  public async resign(roomId: string): Promise<void> {
+    const playerId = requirePlayerId();
+    await runTransaction(ref(rtdb, `rooms/${roomId}`), (room: LiveRoom | null) => {
+      if (!room || room.status !== 'playing') return room;
+      const myRole = room.roles?.[playerId];
+      const winner: RoomResult['winner'] = myRole === 'attackers' ? 'defenders' : 'attackers';
+      const stateAt = Date.now();
+      const gameStatus: GameStatus = winner === 'attackers' ? 'attackers_win' : 'defenders_win';
+      return {
+        ...room,
+        status: 'finished' as const,
+        result: {
+          winner,
+          moveCount: room.state?.moveHistory?.length ?? 0,
+          writtenBy: playerId,
+        },
+        state: room.state
+          ? { ...room.state, gameStatus, stateAt }
+          : { board: serializeBoard(createInitialBoard()), currentTurn: 'defenders' as PlayerRole, gameStatus, stateAt },
+      };
     });
   }
 

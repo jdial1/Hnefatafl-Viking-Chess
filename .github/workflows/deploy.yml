@@ -35,6 +35,7 @@ jobs:
           VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
           VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
           VITE_FIREBASE_DATABASE_URL: ${{ secrets.VITE_FIREBASE_DATABASE_URL }}
+          VITE_FIREBASE_VAPID_KEY: ${{ secrets.VITE_FIREBASE_VAPID_KEY }}
           VITE_BUILD_ID: ${{ github.sha }}
           VITE_UPDATE_MANIFEST: https://jdial1.github.io/${{ github.event.repository.name }}/version.json
           VITE_APK_URL: https://github.com/${{ github.repository }}/releases/latest/download/Hnefatafl-Viking-Chess.apk
@@ -47,6 +48,7 @@ jobs:
             "VITE_FIREBASE_MESSAGING_SENDER_ID=$VITE_FIREBASE_MESSAGING_SENDER_ID" \
             "VITE_FIREBASE_APP_ID=$VITE_FIREBASE_APP_ID" \
             "VITE_FIREBASE_DATABASE_URL=$VITE_FIREBASE_DATABASE_URL" \
+            "VITE_FIREBASE_VAPID_KEY=$VITE_FIREBASE_VAPID_KEY" \
             "VITE_BUILD_ID=$VITE_BUILD_ID" \
             "VITE_UPDATE_MANIFEST=$VITE_UPDATE_MANIFEST" \
             "VITE_APK_URL=$VITE_APK_URL" \
@@ -86,6 +88,7 @@ jobs:
           VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
           VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
           VITE_FIREBASE_DATABASE_URL: ${{ secrets.VITE_FIREBASE_DATABASE_URL }}
+          VITE_FIREBASE_VAPID_KEY: ${{ secrets.VITE_FIREBASE_VAPID_KEY }}
           VITE_BUILD_ID: ${{ github.sha }}
           VITE_UPDATE_MANIFEST: https://jdial1.github.io/${{ github.event.repository.name }}/version.json
           VITE_APK_URL: https://github.com/${{ github.repository }}/releases/latest/download/Hnefatafl-Viking-Chess.apk
@@ -98,6 +101,7 @@ jobs:
             "VITE_FIREBASE_MESSAGING_SENDER_ID=$VITE_FIREBASE_MESSAGING_SENDER_ID" \
             "VITE_FIREBASE_APP_ID=$VITE_FIREBASE_APP_ID" \
             "VITE_FIREBASE_DATABASE_URL=$VITE_FIREBASE_DATABASE_URL" \
+            "VITE_FIREBASE_VAPID_KEY=$VITE_FIREBASE_VAPID_KEY" \
             "VITE_BUILD_ID=$VITE_BUILD_ID" \
             "VITE_UPDATE_MANIFEST=$VITE_UPDATE_MANIFEST" \
             "VITE_APK_URL=$VITE_APK_URL" \

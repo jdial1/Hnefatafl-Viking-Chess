@@ -41,6 +41,7 @@ function createAuth() {
 export const auth = createAuth();
 export const rtdb = getDatabase(app);
 export const firestore = getFirestore(app);
+export { app };
 
 const emulatorFlag = '__hnefataflFirebaseEmulators';
 

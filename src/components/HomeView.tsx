@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Crown, RefreshCw, Shield, Zap } from '../icons';
-import { OnlineMatchState } from '../types';
+import { GameStatus, OnlineMatchState, PlayerRole } from '../types';
 import { BOARD_SIZE, createInitialBoard, isCorner, isThrone } from '../utils/hnefataflEngine';
 import { ROLE_META } from '../utils/roles';
 import { PieceComponent } from './Piece';
@@ -79,9 +79,11 @@ function HomeBoardPreview() {
 
 interface HomeViewProps {
   onlineState: OnlineMatchState;
+  currentTurn: PlayerRole;
+  gameStatus: GameStatus;
   onJoinQueue: () => void;
   onLeaveQueue: () => void;
-  onLeaveRoom: () => void;
+  onResign: () => void;
   onEnterBoard: () => void;
   onPlayAsGuest: () => void;
   onSignIn: () => void;
@@ -89,9 +91,11 @@ interface HomeViewProps {
 
 export const HomeView: React.FC<HomeViewProps> = ({
   onlineState,
+  currentTurn,
+  gameStatus,
   onJoinQueue,
   onLeaveQueue,
-  onLeaveRoom,
+  onResign,
   onEnterBoard,
   onPlayAsGuest,
   onSignIn,
@@ -129,13 +133,27 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
         <div className="pt-1 z-10 flex flex-col gap-3 w-full min-w-0">
           {onlineState.roomId ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full min-w-0">
-              <Btn onClick={onLeaveRoom} variant="ghost" className="w-full min-w-0 min-h-14 hover:bg-rose-950 hover:text-rose-300">
-                Leave match
-              </Btn>
-              <Btn onClick={onEnterBoard} variant="success" className="w-full min-w-0 min-h-14 text-sm sm:text-base font-bold">
-                Return to board
-              </Btn>
+            <div className="flex flex-col gap-3 w-full min-w-0">
+              <div className="space-y-1">
+                <p className="text-slate-100 font-semibold">
+                  {onlineState.opponentName ? `Match vs ${onlineState.opponentName}` : 'Online match'}
+                </p>
+                <p className="text-sm text-slate-400">
+                  {gameStatus !== 'playing'
+                    ? 'This match has ended.'
+                    : onlineState.role && onlineState.role === currentTurn
+                      ? 'Your turn'
+                      : `Waiting for ${onlineState.opponentName || 'your opponent'}`}
+                </p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full min-w-0">
+                <Btn onClick={onResign} variant="ghost" className="w-full min-w-0 min-h-14 hover:bg-rose-950 hover:text-rose-300">
+                  Resign
+                </Btn>
+                <Btn onClick={onEnterBoard} variant="success" className="w-full min-w-0 min-h-14 text-sm sm:text-base font-bold">
+                  Return to board
+                </Btn>
+              </div>
             </div>
           ) : onlineState.inQueue ? (
             <Btn

@@ -3,19 +3,19 @@
     "presence": {
       ".read": true,
       "$id": {
-        ".write": "auth != null"
+        ".write": "auth != null && auth.uid === $id"
       }
     },
     "queue": {
       ".read": "auth != null",
       "$id": {
-        ".write": "auth != null"
+        ".write": "auth != null && auth.uid === $id"
       }
     },
     "rooms": {
       ".read": "auth != null",
       "$roomId": {
-        ".write": "auth != null"
+        ".write": "auth != null && ((!data.exists() && newData.child('players').hasChild(auth.uid)) || data.child('players').hasChild(auth.uid) || (data.child('status').val() === 'waiting' && newData.child('players').hasChild(auth.uid)))"
       }
     }
   }

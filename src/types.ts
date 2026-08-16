@@ -170,7 +170,14 @@ export interface LiveRoom {
   lastMove?: MovePayload | null;
   lastMoveBy?: string | null;
   lastMoveAt?: number | null;
-  state?: { board: BoardState; currentTurn: PlayerRole } | null;
+  state?: {
+    board: BoardState;
+    currentTurn: PlayerRole;
+    moveHistory?: Move[];
+    scars?: Scar[];
+    gameStatus?: GameStatus;
+    stateAt?: number;
+  } | null;
   restartAt?: number | null;
   result?: RoomResult | null;
 }
@@ -189,4 +196,12 @@ export interface UserProfile {
   photoURL: string | null;
   googleName: string | null;
   stats: GameStats;
+  activeRoomId?: string | null;
+}
+
+export type FcmPlatform = 'web' | 'android';
+
+export interface FcmTokenMeta {
+  platform: FcmPlatform;
+  updatedAt: number;
 }

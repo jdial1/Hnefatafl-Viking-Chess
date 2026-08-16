@@ -2,6 +2,8 @@ import { User } from 'firebase/auth';
 import { doc, getDoc, runTransaction, setDoc } from 'firebase/firestore';
 import {
   EMPTY_STATS,
+  FcmPlatform,
+  FcmTokenMeta,
   GameStats,
   GameStatus,
   MatchWinner,
@@ -64,7 +66,7 @@ class StatsService {
     if (!snap.exists()) {
       const displayName = clipDisplayName(preferredName || generateRandomNorseName());
       const stats = localStats.totalGames > 0 ? asStats(localStats) : { ...EMPTY_STATS };
-      const profile: UserProfile = { displayName, photoURL, googleName, stats };
+      const profile: UserProfile = { displayName, photoURL, googleName, stats, activeRoomId: null };
       await setDoc(userRef, {
         displayName,
         photoURL,
@@ -72,6 +74,7 @@ class StatsService {
         createdAt: Date.now(),
         stats,
         recordedMatchIds: {},
+        activeRoomId: null,
       });
       return profile;
     }
@@ -91,7 +94,30 @@ class StatsService {
       await setDoc(userRef, { displayName, photoURL: nextPhoto, googleName }, { merge: true });
     }
 
-    return { displayName, photoURL: nextPhoto, googleName, stats };
+    return {
+      displayName,
+      photoURL: nextPhoto,
+      googleName,
+      stats,
+      activeRoomId: typeof data.activeRoomId === 'string' ? data.activeRoomId : null,
+    };
+  }
+
+  public async setActiveRoomId(uid: string, roomId: string | null): Promise<void> {
+    await setDoc(doc(firestore, 'users', uid), { activeRoomId: roomId }, { merge: true });
+  }
+
+  public async saveFcmToken(uid: string, token: string, platform: FcmPlatform): Promise<void> {
+    const meta: FcmTokenMeta = { platform, updatedAt: Date.now() };
+    await setDoc(doc(firestore, 'users', uid), { fcmTokens: { [token]: meta } }, { merge: true });
+  }
+
+  public async removeFcmToken(uid: string, token: string): Promise<void> {
+    const userRef = doc(firestore, 'users', uid);
+    const snap = await getDoc(userRef);
+    const tokens = { ...((snap.data()?.fcmTokens ?? {}) as Record<string, FcmTokenMeta>) };
+    delete tokens[token];
+    await setDoc(userRef, { fcmTokens: tokens }, { merge: true });
   }
 
   public async setDisplayName(uid: string, name: string): Promise<string> {
@@ -147,9 +173,9 @@ class StatsService {
       let stats = applyRoleTally(asStats(data.stats), input.status, input.moveCount);
       if (matchId && winner && myRole && !recorded[matchId]) {
         stats = applyOnlineResult(stats, personalResult(winner, myRole));
-        tx.set(userRef, { stats, recordedMatchIds: { ...recorded, [matchId]: true } }, { merge: true });
+        tx.set(userRef, { stats, recordedMatchIds: { ...recorded, [matchId]: true }, activeRoomId: null }, { merge: true });
       } else {
-        tx.set(userRef, { stats }, { merge: true });
+        tx.set(userRef, input.online ? { stats, activeRoomId: null } : { stats }, { merge: true });
       }
       return stats;
     });

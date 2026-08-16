@@ -9,6 +9,7 @@
     "start": "vite preview",
     "emulators": "firebase emulators:start",
     "deploy:rules": "firebase deploy --only firestore:rules,database",
+    "deploy:notify": "firebase deploy --only firestore:rules,database,functions",
     "android:sync": "vite build --mode android && npx cap sync android",
     "android:open": "npx cap open android",
     "clean": "rm -rf dist",
@@ -16,6 +17,7 @@
   },
   "dependencies": {
     "@capacitor-firebase/authentication": "^7.3.1",
+    "@capacitor-firebase/messaging": "^7.3.1",
     "@capacitor/android": "^8.5.0",
     "@capacitor/app": "^8.1.1",
     "@capacitor/core": "^8.5.0",

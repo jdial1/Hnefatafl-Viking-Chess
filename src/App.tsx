@@ -9,15 +9,16 @@ import {
   GameSettings,
   GameStats,
   GameStatus,
+  LiveRoom,
   LobbyUser,
   MatchFound,
   Move,
-  MovePayload,
   OnlineMatchState,
   Piece,
   PlayerRole,
   Position,
   Scar,
+  VICTORY_REASON,
 } from './types';
 import {
   checkGameStatus,
@@ -36,6 +37,7 @@ import { soundEngine } from './utils/soundEngine';
 import { opponentOf, resolveDisplayName, roomPlayers, sessionService, storeDisplayName } from './utils/sessionService';
 import { applyOnlineResult, applyRoleTally, personalResult, statsService, winnerFromStatus } from './utils/statsService';
 import { generateRandomNorseName } from './utils/norseNames';
+import { registerFcmToken, unregisterFcmToken } from './utils/fcmService';
 import { notifyTurn, requestTurnNotifications } from './utils/turnNotifier';
 import { useBackButton } from './utils/useBackButton';
 import { Header } from './components/Header';
@@ -144,13 +146,13 @@ export default function App() {
   const historyStackRef = useRef(historyStack);
   const gameStatusRef = useRef(gameStatus);
   const prevEscapeThreatRef = useRef(false);
-  const isReconnectingRef = useRef(false);
   const isFrozenRef = useRef(false);
-  const handleRemoteMoveRef = useRef<((data: MovePayload) => void) | null>(null);
-  const lastAppliedMoveAtRef = useRef(0);
+  const lastAppliedStateAtRef = useRef(0);
   const lastRestartAtRef = useRef(0);
   const pendingMatchRef = useRef<MatchFound | null>(null);
+  const scarsRef = useRef(scars);
   const roomMetaRef = useRef({ createdAt: 0, restartAt: null as number | null, players: {} as Record<string, { role: PlayerRole; displayName: string }> });
+  const indexedRoomRef = useRef<string | null>(null);
 
   boardRef.current = playBoard;
   currentTurnRef.current = currentTurn;
@@ -158,6 +160,7 @@ export default function App() {
   moveHistoryRef.current = moveHistory;
   historyStackRef.current = historyStack;
   gameStatusRef.current = gameStatus;
+  scarsRef.current = scars;
 
   useEffect(() => {
     localStorage.setItem(STORAGE.stats, JSON.stringify(stats));
@@ -200,16 +203,6 @@ export default function App() {
     }
     if (Array.isArray(parsed.scars)) setScars(parsed.scars as Scar[]);
     if (parsed.gameStatus) setGameStatus(parsed.gameStatus as GameStatus);
-    if (parsed.onlineState) {
-      setOnlineState((prev) => ({
-        ...prev,
-        ...(parsed.onlineState as Partial<OnlineMatchState>),
-        isConnected: prev.isConnected,
-        isSignedIn: prev.isSignedIn,
-        uid: prev.uid,
-        inQueue: false,
-      }));
-    }
   }, []);
 
   useEffect(() => {
@@ -255,7 +248,6 @@ export default function App() {
         void statsService
           .recordFinishedGame({
             uid: sessionService.currentUid(),
-            playerId: sessionService.playerId(),
             prev,
             status,
             moveCount: totalMoveCount,
@@ -422,12 +414,21 @@ export default function App() {
 
   const handleRematch = useCallback(() => {
     handleNewGame();
-    if (onlineStateRef.current.roomId) void sessionService.restartGame(onlineStateRef.current.roomId);
+    lastAppliedStateAtRef.current = 0;
+    const roomId = onlineStateRef.current.roomId;
+    const uid = onlineStateRef.current.uid;
+    if (roomId) {
+      void sessionService.restartGame(roomId).then((stateAt) => {
+        lastAppliedStateAtRef.current = stateAt;
+        if (uid) void statsService.setActiveRoomId(uid, roomId);
+        indexedRoomRef.current = roomId;
+      });
+    }
   }, [handleNewGame]);
 
   const handleOpenSandbox = useCallback(() => {
+    if (onlineStateRef.current.roomId) return;
     setIsSandboxMode(true);
-    setOnlineState((prev) => ({ ...prev, ...CLEAR_MATCH }));
     setViewMode('game');
     handleNewGame();
   }, [handleNewGame]);
@@ -476,16 +477,16 @@ export default function App() {
   }, []);
 
   const handleSignOut = useCallback(() => {
-    const roomId = onlineStateRef.current.roomId;
+    const uid = onlineStateRef.current.uid;
     setOnlineState((prev) => ({
       ...EMPTY_ONLINE,
       username: prev.username,
-      uid: sessionService.playerId(),
+      uid: null,
     }));
     setViewMode('home');
     setIsSettingsOpen(false);
     void (async () => {
-      if (roomId) await sessionService.leaveRoom(roomId).catch(() => undefined);
+      await unregisterFcmToken(uid);
       await sessionService.signOut().catch(() => {
         soundEngine.playError();
       });
@@ -493,7 +494,7 @@ export default function App() {
   }, []);
 
   const handleJoinQueue = useCallback(() => {
-    if (!onlineStateRef.current.isConnected) return;
+    if (!onlineStateRef.current.isConnected || onlineStateRef.current.roomId) return;
     setOnlineState((prev) => ({ ...prev, inQueue: true }));
     void sessionService.joinQueue(onlineStateRef.current.username, offerMatch);
   }, [offerMatch]);
@@ -503,17 +504,19 @@ export default function App() {
     setOnlineState((prev) => ({ ...prev, inQueue: false }));
   }, []);
 
-  const handleLeaveRoom = useCallback(() => {
+  const handleResign = useCallback(() => {
     const roomId = onlineStateRef.current.roomId;
-    pendingMatchRef.current = null;
-    setPendingMatch(null);
-    setMatchReady(false);
-    setOpponentReady(false);
-    if (roomId) void sessionService.leaveRoom(roomId);
-    setOnlineState((prev) => ({ ...prev, ...CLEAR_MATCH }));
-    setBoardBroken(false);
-    setViewMode('home');
-  }, []);
+    const uid = onlineStateRef.current.uid;
+    if (!roomId) return;
+    if (pendingMatchRef.current) {
+      handleDeclineMatch();
+      return;
+    }
+    void sessionService.resign(roomId).then(() => {
+      if (uid) void statsService.setActiveRoomId(uid, null);
+      indexedRoomRef.current = null;
+    });
+  }, [handleDeclineMatch]);
 
   const handleUndo = useCallback(() => {
     const stack = historyStackRef.current;
@@ -571,34 +574,61 @@ export default function App() {
     return true;
   });
 
-  const handleRemoteMove = useCallback(
-    (data: MovePayload) => {
-      const { from, to, nextTurn: incomingNextTurn, moveRecord } = data;
-      if (!isPosition(from) || !isPosition(to)) {
-        setBoardBroken(true);
-        return;
+  const applyRoomSnapshot = useCallback(
+    (room: LiveRoom, uid: string, animate: boolean) => {
+      const state = room.state;
+      if (!state) return;
+      const restored = hydrateBoard(state.board);
+      setBoard(restored);
+      boardRef.current = restored;
+      setCurrentTurn(state.currentTurn);
+      currentTurnRef.current = state.currentTurn;
+      setHistoryStack([]);
+      if (Array.isArray(state.moveHistory)) {
+        const history = state.moveHistory
+          .map(hydrateMove)
+          .filter((move) => isPosition(move.from) && isPosition(move.to) && move.piece);
+        setMoveHistory(history);
+        moveHistoryRef.current = history;
       }
-      const piece = moveRecord?.piece ?? boardRef.current[from.r]?.[from.c];
-      const { newBoard, captured } = executeMove(boardRef.current, from, to);
-      const nextTurn = incomingNextTurn ?? (currentTurnRef.current === 'defenders' ? 'attackers' : 'defenders');
-      if (onlineStateRef.current.role === nextTurn) notifyTurn();
-
-      const record = piece
-        ? createMoveRecord(
-            { from, to, piece, captures: captured, board: newBoard },
-            formatNotation(from, to, piece),
-            moveRecord?.timestamp
-          )
-        : undefined;
-
-      applyMoveResult(newBoard, nextTurn, from, to, captured, piece, record);
+      if (Array.isArray(state.scars)) {
+        setScars(state.scars);
+        scarsRef.current = state.scars;
+      }
+      const nextStatus = state.gameStatus ?? (room.status === 'finished' && room.result
+        ? room.result.winner === 'attackers'
+          ? 'attackers_win'
+          : room.result.winner === 'defenders'
+            ? 'defenders_win'
+            : 'draw'
+        : 'playing');
+      if (nextStatus !== 'playing' && gameStatusRef.current === 'playing') {
+        setGameStatus(nextStatus);
+        const reason =
+          nextStatus === 'defenders_win'
+            ? VICTORY_REASON.defenders
+            : nextStatus === 'attackers_win'
+              ? VICTORY_REASON.attackers
+              : '';
+        setStatusReason(reason);
+        soundEngine.playVictory();
+        recordGameResult(nextStatus, (state.moveHistory ?? moveHistoryRef.current).length);
+      } else if (nextStatus === 'playing') {
+        setGameStatus('playing');
+      }
+      const highlight = room.lastMove;
+      if (highlight && isPosition(highlight.from) && isPosition(highlight.to)) {
+        setLastMove({ from: highlight.from, to: highlight.to, piece: highlight.moveRecord?.piece });
+      } else {
+        setLastMove(null);
+      }
+      clearSelection();
+      if (animate && room.lastMoveBy && room.lastMoveBy !== uid && onlineStateRef.current.role === state.currentTurn) {
+        void notifyTurn();
+      }
     },
-    [applyMoveResult]
+    [recordGameResult]
   );
-
-  useEffect(() => {
-    handleRemoteMoveRef.current = handleRemoteMove;
-  }, [handleRemoteMove]);
 
   useEffect(() => {
     let cancelled = false;
@@ -613,7 +643,7 @@ export default function App() {
           storeDisplayName(username);
           setOnlineState((prev) => ({
             ...prev,
-            uid: sessionService.playerId(),
+            uid: null,
             isSignedIn: false,
             isConnected: false,
             username: prev.username || username,
@@ -624,28 +654,26 @@ export default function App() {
         const isGoogle = !user.isAnonymous;
         const username = resolveDisplayName(onlineStateRef.current.username);
         storeDisplayName(username);
-
-        if (onlineStateRef.current.roomId) isReconnectingRef.current = true;
         setOnlineState((prev) => ({
           ...prev,
-          uid: sessionService.playerId(),
+          uid: user.uid,
           isSignedIn: isGoogle,
           isConnected: true,
           username: prev.username || username,
         }));
 
-        if (!isGoogle) {
-          await sessionService.goOnline(username);
-          return;
-        }
-
         const local = loadJson<GameStats>(STORAGE.stats, EMPTY_STATS);
         try {
           const profile = await statsService.ensureProfile(user, local, username);
           if (cancelled) return;
-          setStats(profile.stats);
-          setOnlineState((prev) => ({ ...prev, username: profile.displayName }));
+          if (isGoogle) setStats(profile.stats);
+          setOnlineState((prev) => ({
+            ...prev,
+            username: profile.displayName,
+            roomId: profile.activeRoomId || prev.roomId,
+          }));
           await sessionService.goOnline(profile.displayName, profile.photoURL);
+          void registerFcmToken(user.uid);
         } catch (error) {
           soundEngine.playError();
           console.error(error);
@@ -675,8 +703,17 @@ export default function App() {
           players: roomPlayers(room),
         };
 
-        if (room.status === 'playing' && Object.keys(room.players ?? {}).length >= 2) {
+        if (room.status === 'playing') {
           sessionService.persistRoom(roomId);
+          if (indexedRoomRef.current !== roomId) {
+            indexedRoomRef.current = roomId;
+            void statsService.setActiveRoomId(uid, roomId);
+          }
+        }
+
+        if (room.status === 'finished' && indexedRoomRef.current === roomId) {
+          indexedRoomRef.current = null;
+          void statsService.setActiveRoomId(uid, null);
         }
 
         if (pendingMatchRef.current && Object.keys(room.players ?? {}).length < 2) {
@@ -694,7 +731,6 @@ export default function App() {
           setOpponentReady(Boolean(opponent && room.players?.[opponent.id]?.ready));
           if (room.status === 'playing') {
             beginPendingGame();
-            return;
           }
         }
         setOnlineState((prev) => ({
@@ -705,36 +741,16 @@ export default function App() {
           opponentName: opponent?.name ?? null,
         }));
 
-        if (isReconnectingRef.current) {
-          isReconnectingRef.current = false;
-          lastAppliedMoveAtRef.current = room.lastMoveAt ?? 0;
-          lastRestartAtRef.current = room.restartAt ?? 0;
-          if (room.state) {
-            const restored = hydrateBoard(room.state.board);
-            setBoard(restored);
-            boardRef.current = restored;
-            setCurrentTurn(room.state.currentTurn);
-            currentTurnRef.current = room.state.currentTurn;
-            const counts = countPieces(restored);
-            const empty = counts.attackers + counts.defenders === 0 && !counts.hasKing;
-            if (!empty) void sessionService.sendState(roomId, restored, currentTurnRef.current);
-          }
-          return;
-        }
-
-        if (
-          room.lastMove &&
-          room.lastMoveBy &&
-          room.lastMoveBy !== uid &&
-          (room.lastMoveAt ?? 0) !== lastAppliedMoveAtRef.current
-        ) {
-          lastAppliedMoveAtRef.current = room.lastMoveAt ?? 0;
-          handleRemoteMoveRef.current?.(room.lastMove);
+        const stamp = room.state?.stateAt ?? room.lastMoveAt ?? room.restartAt ?? 0;
+        if (stamp !== lastAppliedStateAtRef.current) {
+          const animate = lastAppliedStateAtRef.current !== 0 && room.lastMoveBy !== uid;
+          lastAppliedStateAtRef.current = stamp;
+          applyRoomSnapshot(room, uid, animate);
         }
 
         if (room.restartAt && room.restartAt !== lastRestartAtRef.current) {
           lastRestartAtRef.current = room.restartAt;
-          handleNewGame();
+          if (!room.state) handleNewGame();
         }
       },
       onGone: () => {
@@ -742,10 +758,13 @@ export default function App() {
         setPendingMatch(null);
         setMatchReady(false);
         setOpponentReady(false);
+        indexedRoomRef.current = null;
+        lastAppliedStateAtRef.current = 0;
         setOnlineState((prev) => ({ ...prev, ...CLEAR_MATCH }));
+        if (uid) void statsService.setActiveRoomId(uid, null);
       },
     });
-  }, [onlineState.roomId, onlineState.uid, handleNewGame, beginPendingGame]);
+  }, [onlineState.roomId, onlineState.uid, handleNewGame, beginPendingGame, applyRoomSnapshot]);
 
   const handleSelectPiece = useCallback((pos: Position) => {
     if (gameStatusRef.current !== 'playing' || isFrozenRef.current) return;
@@ -785,10 +804,38 @@ export default function App() {
         formatNotation(from, to, piece)
       );
 
+      const dying = captured
+        .map((pos) => ({ pos, piece: boardRef.current[pos.r]?.[pos.c] }))
+        .filter((entry): entry is { pos: Position; piece: Piece } => Boolean(entry.piece));
+      const nextHistory = [...moveHistoryRef.current, moveRecord];
+      const nextScars = [
+        ...scarsRef.current,
+        ...dying.map(({ pos, piece: dead }) => ({
+          r: pos.r,
+          c: pos.c,
+          role: dead.role,
+          moveIndex: nextHistory.length,
+        })),
+      ];
+      const statusCheck = checkGameStatus(newBoard, nextTurn);
+      const stateAt = Date.now();
+
       applyMoveResult(newBoard, nextTurn, from, to, captured, piece, moveRecord);
       const roomId = onlineStateRef.current.roomId;
       if (roomId) {
-        void sessionService.sendMove(roomId, { from, to, board: newBoard, nextTurn, moveRecord }, newBoard, nextTurn);
+        lastAppliedStateAtRef.current = stateAt;
+        void sessionService.sendMove(
+          roomId,
+          { from, to, board: newBoard, nextTurn, moveRecord },
+          {
+            board: newBoard,
+            currentTurn: nextTurn,
+            moveHistory: nextHistory,
+            scars: nextScars,
+            gameStatus: statusCheck.status,
+          },
+          stateAt
+        );
       }
     },
     [applyMoveResult]
@@ -828,9 +875,11 @@ export default function App() {
           {viewMode === 'home' ? (
             <HomeView
               onlineState={onlineState}
+              currentTurn={currentTurn}
+              gameStatus={gameStatus}
               onJoinQueue={handleJoinQueue}
               onLeaveQueue={handleLeaveQueue}
-              onLeaveRoom={handleLeaveRoom}
+              onResign={handleResign}
               onEnterBoard={() => (pendingMatch ? handleAcceptMatch() : setViewMode('game'))}
               onPlayAsGuest={() => void handlePlayAsGuest()}
               onSignIn={() => void handleSignIn()}
@@ -853,8 +902,8 @@ export default function App() {
                   Return home
                 </Btn>
                 {onlineState.roomId && (
-                  <Btn onClick={handleLeaveRoom} variant="ghost" className="w-full min-h-14 hover:bg-rose-950 hover:text-rose-300">
-                    Leave match
+                  <Btn onClick={handleResign} variant="ghost" className="w-full min-h-14 hover:bg-rose-950 hover:text-rose-300">
+                    Resign
                   </Btn>
                 )}
               </div>

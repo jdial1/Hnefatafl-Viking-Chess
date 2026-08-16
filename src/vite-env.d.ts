@@ -9,7 +9,7 @@ interface ImportMetaEnv {
   readonly VITE_FIREBASE_MESSAGING_SENDER_ID: string;
   readonly VITE_FIREBASE_APP_ID: string;
   readonly VITE_FIREBASE_DATABASE_URL: string;
-  readonly VITE_FIREBASE_EMULATOR?: string;
+  readonly VITE_FIREBASE_VAPID_KEY?: string;
   readonly VITE_BUILD_ID?: string;
   readonly VITE_UPDATE_MANIFEST?: string;
   readonly VITE_APK_URL?: string;
