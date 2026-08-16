@@ -2,7 +2,7 @@ import { Volume2, VolumeX, Eye, Info, Settings, Swords, Trophy, Keyboard, Rotate
 import React, { useEffect, useState } from 'react';
 import { GameSettings, GameStats } from '../types';
 import { ROLE_META } from '../utils/roles';
-import { Modal } from './Modal';
+import { Modal, ModalBody } from './Modal';
 import { ModalHeader } from './ModalHeader';
 import { Avatar, Btn, Kbd, MetricRow, SectionTitle, Toggle } from './ui';
 
@@ -46,7 +46,7 @@ function SettingRow({
         {icon}
         <div className="min-w-0">
           <div className="font-semibold text-slate-200 truncate">{title}</div>
-          <div className="text-xs text-slate-400 truncate">{hint}</div>
+          <div className="text-xs text-slate-300 truncate">{hint}</div>
         </div>
       </div>
       <div className="shrink-0">{children}</div>
@@ -82,7 +82,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         closeAriaLabel="Close settings modal"
       />
 
-      <div className="space-y-5 text-sm">
+      <ModalBody className="space-y-5 text-sm">
         {stats && (
           <section className="space-y-3">
             <div className="flex items-center justify-between gap-3">
@@ -104,38 +104,28 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <MetricRow
               className="border-y border-slate-800"
               items={[
-                { label: 'Total Games', value: stats.totalGames },
+                { label: 'Total games', value: stats.totalGames },
                 {
-                  label: 'Defender Wins',
+                  label: 'Defender wins',
                   value: stats.defendersWins,
                   valueClassName: ROLE_META.defenders.mutedClass,
                 },
                 {
-                  label: 'Attacker Wins',
+                  label: 'Attacker wins',
                   value: stats.attackersWins,
                   valueClassName: ROLE_META.attackers.mutedClass,
                 },
+                { label: 'Online wins', value: stats.onlineWins },
+                { label: 'Online losses', value: stats.onlineLosses },
+                { label: 'Online draws', value: stats.onlineDraws },
+                {
+                  label: 'Fastest victory',
+                  value: stats.fastestWinMoves ? `${stats.fastestWinMoves} moves` : '—',
+                  valueClassName: 'text-amber-300',
+                },
+                { label: 'Total moves', value: stats.totalMoves },
               ]}
             />
-
-            <MetricRow
-              className="border-b border-slate-800"
-              items={[
-                { label: 'Online Wins', value: stats.onlineWins },
-                { label: 'Online Losses', value: stats.onlineLosses },
-                { label: 'Online Draws', value: stats.onlineDraws },
-              ]}
-            />
-
-            <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-mono text-slate-300">
-              <span>
-                Fastest Victory:{' '}
-                <strong className="text-amber-300">{stats.fastestWinMoves ? `${stats.fastestWinMoves} moves` : 'N/A'}</strong>
-              </span>
-              <span>
-                Total Moves: <strong className="text-slate-200">{stats.totalMoves}</strong>
-              </span>
-            </div>
           </section>
         )}
 
@@ -234,7 +224,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             under the CC-BY 3.0 License.
           </p>
         </section>
-      </div>
+      </ModalBody>
     </Modal>
   );
 };

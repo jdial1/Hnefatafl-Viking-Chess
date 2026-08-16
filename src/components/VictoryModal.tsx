@@ -27,7 +27,7 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
   const meta = ROLE_META[winner];
 
   return (
-    <Modal isOpen onClose={onClose} ariaLabel={`${meta.plural} victory`} maxWidth="md" className="p-5 sm:p-6">
+    <Modal isOpen onClose={onClose} ariaLabel={`${meta.plural} victory`} maxWidth="md">
       <ModalHeader
         title={`${meta.plural} win`}
         subtitle={reason || meta.victory}

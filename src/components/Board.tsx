@@ -5,6 +5,7 @@ import { BoardState, DyingPiece, Piece, PlayerRole, Position, Scar } from '../ty
 import { BOARD_SIZE, isCorner, isThrone, toAlgebraic } from '../utils/hnefataflEngine';
 import { JUICE, scarOpacity } from '../utils/juice';
 import { ROLE_META } from '../utils/roles';
+import { celticKnotClass } from './ui';
 import { PieceComponent } from './Piece';
 
 interface BoardProps {
@@ -224,7 +225,10 @@ export const Board: React.FC<BoardProps> = memo(({
     <div
       tabIndex={0}
       onKeyDown={handleKeyDown}
-      className="relative w-full max-w-[620px] aspect-square mx-auto select-none outline-none focus-visible:ring-2 focus-visible:ring-amber-400 rounded-xl"
+      className={celticKnotClass(
+        isEscapeThreat,
+        'w-full aspect-square select-none outline-none focus-visible:ring-2 focus-visible:ring-amber-400 rounded-xl'
+      )}
       style={{
         '--turn-pulse-ms': `${JUICE.turnPulse.durationMs}ms`,
         '--turn-pulse-min': JUICE.turnPulse.minOpacity,

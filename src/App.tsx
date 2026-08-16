@@ -48,7 +48,6 @@ import { MatchFoundModal } from './components/MatchFoundModal';
 import { MoveHistory } from './components/MoveHistory';
 import { HomeView } from './components/HomeView';
 import { UpdateBanner } from './components/UpdateBanner';
-import { celticKnotClass } from './components/ui';
 import { useAppUpdate } from './utils/appUpdate';
 
 const STORAGE = {
@@ -757,8 +756,8 @@ export default function App() {
   const pendingOpponent = lobbyUsers.find((user) => user.id === pendingMatch?.opponentId);
 
   return (
-    <div className="screen-safe w-full bg-norse-argyle text-slate-100 flex flex-col justify-between font-sans selection:bg-amber-500 selection:text-slate-950">
-      <div className="w-full px-4 pt-3 sm:pt-4">
+    <div className="screen-safe w-full bg-norse-argyle text-slate-100 flex flex-col font-sans selection:bg-amber-500 selection:text-slate-950">
+      <div className={`w-full mx-auto px-4 sm:px-8 pt-3 sm:pt-5 pb-4 sm:pb-6 flex flex-col flex-1 min-h-0 ${viewMode === 'home' ? 'max-w-6xl' : 'max-w-4xl'}`}>
         {appUpdate.available && (
           <UpdateBanner
             onUpdate={() => {
@@ -783,62 +782,59 @@ export default function App() {
           onOpenPlayers={() => setIsPlayersOpen(true)}
           photoURL={onlineState.isSignedIn ? sessionService.accountInfo()?.photoURL : null}
         />
-      </div>
 
-      <main className="flex-1 flex flex-col items-center justify-start sm:justify-center my-4 sm:my-3 px-0 sm:px-4 pb-3 sm:pb-4 w-full">
-        {viewMode === 'home' ? (
-          <HomeView
-            onlineState={onlineState}
-            onJoinQueue={handleJoinQueue}
-            onLeaveQueue={handleLeaveQueue}
-            onLeaveRoom={handleLeaveRoom}
-            onEnterBoard={() => (pendingMatch ? handleAcceptMatch() : setViewMode('game'))}
-            onPlayAsGuest={() => void handlePlayAsGuest()}
-            onSignIn={() => void handleSignIn()}
-          />
-        ) : (
-          <>
-            {(onlineState.roomId || isSandboxMode) && (
-              <TurnBanner
-                currentTurn={currentTurn}
-                playerRole={onlineState.role}
-                moveCount={moveHistory.length}
-                lastMoveRecord={moveHistory[moveHistory.length - 1] || null}
-                isSandboxMode={isSandboxMode}
-                pieceCounts={pieceCounts}
-                isEscapeThreat={isEscapeThreat}
-                onResetBoard={handleNewGame}
-                onOpenHistory={() => setShowMoveHistory(true)}
-              />
-            )}
-            <div className="w-full flex justify-center items-center py-4">
-              <motion.div
-                ref={boardScope}
-                className={celticKnotClass(isEscapeThreat, 'p-2 sm:p-3')}
-              >
-                <Board
-                  board={playBoard}
-                  selectedPos={selectedPos}
-                  validMoves={validMoves}
-                  lastMove={lastMove}
-                  dyingPieces={dyingPieces}
-                  scars={scars}
-                  moveCount={moveHistory.length}
+        <main className="flex-1 flex flex-col items-stretch justify-start sm:justify-center mt-5 sm:mt-6 w-full min-w-0">
+          {viewMode === 'home' ? (
+            <HomeView
+              onlineState={onlineState}
+              onJoinQueue={handleJoinQueue}
+              onLeaveQueue={handleLeaveQueue}
+              onLeaveRoom={handleLeaveRoom}
+              onEnterBoard={() => (pendingMatch ? handleAcceptMatch() : setViewMode('game'))}
+              onPlayAsGuest={() => void handlePlayAsGuest()}
+              onSignIn={() => void handleSignIn()}
+            />
+          ) : (
+            <>
+              {(onlineState.roomId || isSandboxMode) && (
+                <TurnBanner
                   currentTurn={currentTurn}
                   playerRole={onlineState.role}
-                  showValidMoves={settings.showValidMoves}
-                  juiceEnabled={settings.juiceEnabled}
+                  moveCount={moveHistory.length}
+                  lastMoveRecord={moveHistory[moveHistory.length - 1] || null}
+                  isSandboxMode={isSandboxMode}
+                  pieceCounts={pieceCounts}
                   isEscapeThreat={isEscapeThreat}
-                  onSelectPiece={handleSelectPiece}
-                  onMovePiece={(to) => {
-                    if (selectedPos) handleMakeMove(selectedPos, to);
-                  }}
+                  onResetBoard={handleNewGame}
+                  onOpenHistory={() => setShowMoveHistory(true)}
                 />
-              </motion.div>
-            </div>
-          </>
-        )}
-      </main>
+              )}
+              <div className="w-full pt-2 sm:pt-3">
+                <motion.div ref={boardScope} className="w-full">
+                  <Board
+                    board={playBoard}
+                    selectedPos={selectedPos}
+                    validMoves={validMoves}
+                    lastMove={lastMove}
+                    dyingPieces={dyingPieces}
+                    scars={scars}
+                    moveCount={moveHistory.length}
+                    currentTurn={currentTurn}
+                    playerRole={onlineState.role}
+                    showValidMoves={settings.showValidMoves}
+                    juiceEnabled={settings.juiceEnabled}
+                    isEscapeThreat={isEscapeThreat}
+                    onSelectPiece={handleSelectPiece}
+                    onMovePiece={(to) => {
+                      if (selectedPos) handleMakeMove(selectedPos, to);
+                    }}
+                  />
+                </motion.div>
+              </div>
+            </>
+          )}
+        </main>
+      </div>
 
       <MoveHistory isOpen={showMoveHistory} moves={moveHistory} onClose={() => setShowMoveHistory(false)} />
       <PlayersModal isOpen={isPlayersOpen} users={lobbyUsers} onClose={() => setIsPlayersOpen(false)} />

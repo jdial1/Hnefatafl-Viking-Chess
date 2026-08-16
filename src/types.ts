@@ -78,6 +78,7 @@ export interface LobbyUser {
   roomId?: string;
   signedIn?: boolean;
   photoURL?: string | null;
+  googleInitials?: string | null;
 }
 
 export interface OnlineMatchState {

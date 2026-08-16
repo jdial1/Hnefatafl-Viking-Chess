@@ -1,7 +1,7 @@
 import React from 'react';
 import { Users, User, GoogleG } from '../icons';
 import { LobbyUser } from '../types';
-import { Modal } from './Modal';
+import { Modal, ModalBody } from './Modal';
 import { ModalHeader } from './ModalHeader';
 import { Avatar, Chip } from './ui';
 
@@ -15,7 +15,7 @@ export const PlayersModal: React.FC<PlayersModalProps> = ({ isOpen, users, onClo
   const roster = [...users].sort((a, b) => a.username.localeCompare(b.username));
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} ariaLabel="Connected players" maxWidth="sm" scrollable>
+    <Modal isOpen={isOpen} onClose={onClose} ariaLabel="Connected players" maxWidth="sm">
       <ModalHeader
         title={`Connected players (${roster.length})`}
         subtitle="Everyone currently in the hall"
@@ -24,7 +24,7 @@ export const PlayersModal: React.FC<PlayersModalProps> = ({ isOpen, users, onClo
         closeAriaLabel="Close connected players"
       />
 
-      <div className="overflow-y-auto max-h-[55vh] pr-2">
+      <ModalBody>
         {roster.length === 0 ? (
           <div className="py-8 text-sm text-slate-300">The hall is empty.</div>
         ) : (
@@ -43,15 +43,16 @@ export const PlayersModal: React.FC<PlayersModalProps> = ({ isOpen, users, onClo
                       )
                     }
                   />
-                  <span className="text-amber-300 font-semibold truncate font-celtic">
+                  <span className="text-amber-300 font-semibold truncate">
                     {user.username || 'Unknown'}
+                    {user.signedIn && user.googleInitials ? ` (${user.googleInitials})` : ''}
                   </span>
                 </Chip>
               </li>
             ))}
           </ul>
         )}
-      </div>
+      </ModalBody>
     </Modal>
   );
 };

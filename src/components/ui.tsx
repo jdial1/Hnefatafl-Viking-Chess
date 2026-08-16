@@ -103,12 +103,10 @@ export function Btn({
 export function GoogleSignInButton({
   onClick,
   disabled,
-  iconOnly = false,
   className = '',
 }: {
   onClick: () => void;
   disabled?: boolean;
-  iconOnly?: boolean;
   className?: string;
 }) {
   return (
@@ -118,13 +116,26 @@ export function GoogleSignInButton({
       disabled={disabled}
       aria-label="Sign in with Google"
       title="Sign in with Google"
-      className={`inline-flex items-center justify-center min-h-10 rounded bg-white text-[#1F1F1F] border border-[#747775] font-medium text-sm leading-none hover:bg-[#F8FAFF] focus:outline-none focus:ring-2 focus:ring-[#0B57D0]/40 disabled:opacity-40 disabled:cursor-not-allowed ${
-        iconOnly ? 'px-0' : 'gap-3 px-3'
-      } ${className}`}
+      className={`inline-flex items-center justify-center gap-3 min-h-14 px-4 rounded-lg bg-[#131314] text-[#E3E3E3] border border-[#8E918F] font-medium text-sm leading-none hover:bg-[#1f1f1f] focus:outline-none focus:ring-2 focus:ring-amber-500/40 disabled:opacity-40 disabled:cursor-not-allowed ${className}`}
     >
       <GoogleG className="w-[18px] h-[18px] shrink-0" />
-      {!iconOnly && 'Sign in with Google'}
+      Sign in with Google
     </button>
+  );
+}
+
+function CarveCheck({ className = '' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" className={className} aria-hidden>
+      <path
+        d="M3.5 10.5 L8 15.5 L16.5 4.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.4"
+        strokeLinecap="square"
+        strokeLinejoin="miter"
+      />
+    </svg>
   );
 }
 
@@ -135,9 +146,13 @@ export function Toggle({ label, on, onToggle }: { label: string; on: boolean; on
       onClick={onToggle}
       aria-label={label}
       aria-pressed={on}
-      className={`w-10 h-5.5 rounded-full p-0.5 transition-colors shrink-0 ${on ? 'bg-amber-500' : 'bg-slate-800'}`}
+      className={`w-11 h-11 rounded-lg border flex items-center justify-center shrink-0 transition-colors ${
+        on
+          ? 'border-amber-500/60 bg-slate-950 text-amber-400'
+          : 'border-slate-700 bg-slate-950 text-slate-600'
+      }`}
     >
-      <div className={`w-4 h-4 rounded-full bg-slate-950 transition-transform ${on ? 'translate-x-4.5' : 'translate-x-0'}`} />
+      {on ? <CarveCheck className="w-5 h-5" /> : <span className="w-4 h-4 rounded-sm border border-current" />}
     </button>
   );
 }
@@ -154,9 +169,9 @@ export function Metric({
   className?: string;
 }) {
   return (
-    <div className={`font-mono ${className}`}>
-      <div className={`font-bold text-base ${valueClassName}`}>{value}</div>
-      <div className="text-slate-400 text-xs">{label}</div>
+    <div className={`flex items-baseline justify-between gap-4 ${className}`}>
+      <dt className="text-sm text-slate-300">{label}</dt>
+      <dd className={`font-mono font-semibold text-base tabular-nums ${valueClassName}`}>{value}</dd>
     </div>
   );
 }
@@ -169,11 +184,11 @@ export function MetricRow({
   className?: string;
 }) {
   return (
-    <div className={`grid grid-cols-3 divide-x divide-slate-800 py-3 ${className}`}>
+    <dl className={`divide-y divide-slate-800 ${className}`}>
       {items.map((metric) => (
-        <Metric key={metric.label} {...metric} className="px-2 sm:px-3" />
+        <Metric key={metric.label} {...metric} className="py-2.5" />
       ))}
-    </div>
+    </dl>
   );
 }
 
@@ -206,7 +221,7 @@ export function Kbd({ children }: { children: React.ReactNode }) {
 
 export function RoleIcon({ role, className = '' }: { role: PlayerRole; className?: string }) {
   if (role === 'defenders') return <Shield className={className} />;
-  return <Swords className={`${className} rotate-90`} />;
+  return <Swords className={className} />;
 }
 
 export function RoleSummary({

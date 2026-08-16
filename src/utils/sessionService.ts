@@ -66,6 +66,15 @@ export function resolveDisplayName(current?: string): string {
   return current || getStoredDisplayName() || generateRandomNorseName();
 }
 
+export function googleInitials(user: User | null | undefined): string | null {
+  if (!user || user.isAnonymous) return null;
+  const parts = (user.displayName ?? '').trim().split(/\s+/).filter(Boolean);
+  const first = parts[0]?.[0];
+  if (!first) return null;
+  const last = parts.length > 1 ? parts[parts.length - 1][0] : null;
+  return (last ? `${first}.${last}.` : `${first}.`).toUpperCase();
+}
+
 export function resolvePhotoURL(user: User | null | undefined, extra?: string | null): string | null {
   if (extra?.trim()) return extra.trim();
   if (!user || user.isAnonymous) return null;
@@ -275,6 +284,7 @@ class SessionService {
         joinedAt: Date.now(),
         signedIn: this.isGoogleUser(),
         photoURL: this.photoURL,
+        googleInitials: this.isGoogleUser() ? googleInitials(auth.currentUser) : null,
       });
     };
 

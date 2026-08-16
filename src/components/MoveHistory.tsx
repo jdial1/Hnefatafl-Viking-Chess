@@ -2,7 +2,7 @@ import { History } from '../icons';
 import React from 'react';
 import { Move } from '../types';
 import { ROLE_META } from '../utils/roles';
-import { Modal } from './Modal';
+import { Modal, ModalBody } from './Modal';
 import { ModalHeader } from './ModalHeader';
 
 interface MoveHistoryProps {
@@ -13,7 +13,7 @@ interface MoveHistoryProps {
 
 export const MoveHistory: React.FC<MoveHistoryProps> = ({ isOpen, moves, onClose }) => {
   return (
-    <Modal isOpen={isOpen} onClose={onClose} ariaLabel="Move log" maxWidth="sm" scrollable>
+    <Modal isOpen={isOpen} onClose={onClose} ariaLabel="Move log" maxWidth="sm">
       <ModalHeader
         title={`Saga of the Board (${moves.length})`}
         subtitle="The battle as it was told"
@@ -22,7 +22,7 @@ export const MoveHistory: React.FC<MoveHistoryProps> = ({ isOpen, moves, onClose
         closeAriaLabel="Close move log"
       />
 
-      <div className="overflow-y-auto max-h-[55vh] pr-2 text-sm">
+      <ModalBody className="text-sm">
         {moves.length === 0 ? (
           <div className="py-8 text-slate-300">The board is still and nothing has been told.</div>
         ) : (
@@ -39,7 +39,7 @@ export const MoveHistory: React.FC<MoveHistoryProps> = ({ isOpen, moves, onClose
                   )}
                 </div>
                 {move.captures.length > 0 && (
-                  <span className="px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-300 font-semibold text-xs shrink-0">
+                  <span className="px-2 py-0.5 rounded-lg bg-rose-500/15 text-rose-300 font-semibold text-xs shrink-0">
                     +{move.captures.length}
                   </span>
                 )}
@@ -47,7 +47,7 @@ export const MoveHistory: React.FC<MoveHistoryProps> = ({ isOpen, moves, onClose
             ))}
           </ol>
         )}
-      </div>
+      </ModalBody>
     </Modal>
   );
 };

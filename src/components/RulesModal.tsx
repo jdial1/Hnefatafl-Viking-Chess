@@ -1,6 +1,6 @@
 import { BookOpen, Crown } from '../icons';
 import React from 'react';
-import { Modal } from './Modal';
+import { Modal, ModalBody } from './Modal';
 import { ModalHeader } from './ModalHeader';
 import { RoleSummary, SectionTitle } from './ui';
 
@@ -31,7 +31,7 @@ const MOVEMENT = [
 
 export const RulesModal: React.FC<RulesModalProps> = ({ isOpen, onClose }) => {
   return (
-    <Modal isOpen={isOpen} onClose={onClose} ariaLabel="Hnefatafl rules" maxWidth="lg" scrollable className="p-3.5 sm:p-5">
+    <Modal isOpen={isOpen} onClose={onClose} ariaLabel="Hnefatafl rules" maxWidth="lg">
       <ModalHeader
         title="Hnefatafl Rules"
         subtitle="Movement, capture, and victory"
@@ -40,7 +40,7 @@ export const RulesModal: React.FC<RulesModalProps> = ({ isOpen, onClose }) => {
         closeAriaLabel="Close rules modal"
       />
 
-      <div className="flex-1 overflow-y-auto pr-2 space-y-5 text-sm text-slate-300 leading-6">
+      <ModalBody className="space-y-5 text-sm text-slate-300 leading-6">
         <section className="pb-5 border-b border-slate-800">
           <SectionTitle as="h3" icon={Crown} className="mb-3">
             Victory objectives
@@ -62,7 +62,7 @@ export const RulesModal: React.FC<RulesModalProps> = ({ isOpen, onClose }) => {
             )}
           </section>
         ))}
-      </div>
+      </ModalBody>
     </Modal>
   );
 };

@@ -37,12 +37,27 @@ textarea,
   }
   .bg-norse-argyle {
     background-color: #020617;
+    background-image:
+      linear-gradient(rgb(2 6 23 / 0.82), rgb(2 6 23 / 0.82)),
+      url('/celtic_bg.jpg');
+    background-size: auto, 30rem;
+    background-position: center;
+    background-repeat: no-repeat, repeat;
   }
 
   .screen-safe {
     min-height: 100dvh;
     padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
       env(safe-area-inset-left);
+  }
+
+  .modal-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+    padding-right: 0.75rem;
+    padding-bottom: 0.5rem;
   }
 
   .celtic-knot-border {
