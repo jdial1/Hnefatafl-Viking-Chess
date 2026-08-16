@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Crown, RefreshCw, Shield, Zap } from '../icons';
-import { GameStatus, OnlineMatchState, PlayerRole } from '../types';
+import { Crown, LogOut, RefreshCw, Shield, Zap } from '../icons';
+import { GameStatus, OnlineMatchState, PieceCounts, PlayerRole } from '../types';
 import { BOARD_SIZE, createInitialBoard, isCorner, isThrone } from '../utils/hnefataflEngine';
-import { ROLE_META } from '../utils/roles';
+import { PLAYER_ROLES, ROLE_META, forceStats } from '../utils/roles';
 import { PieceComponent } from './Piece';
-import { Btn, GoogleSignInButton, RoleSummary, celticKnotClass } from './ui';
+import { Btn, GoogleSignInButton, RoleIcon, celticKnotClass } from './ui';
 
 const SEARCH_FLAVOR = [
   'Watching the shoreline for sails',
@@ -22,6 +22,15 @@ const SEARCH_FLAVOR = [
 ];
 
 let lastFlavor = -1;
+
+function formatPlayedDuration(startedAt: number, endedAt: number | null, now: number): string {
+  if (!startedAt) return '0h 0m';
+  const elapsed = Math.max(0, (endedAt ?? now) - startedAt);
+  const totalMin = Math.floor(elapsed / 60000);
+  const hours = Math.floor(totalMin / 60);
+  const minutes = totalMin % 60;
+  return `${hours}h ${minutes}m`;
+}
 
 function nextFlavor(): number {
   let index = Math.floor(Math.random() * SEARCH_FLAVOR.length);
@@ -81,6 +90,10 @@ interface HomeViewProps {
   onlineState: OnlineMatchState;
   currentTurn: PlayerRole;
   gameStatus: GameStatus;
+  moveCount: number;
+  pieceCounts: PieceCounts;
+  matchStartedAt: number;
+  matchEndedAt: number | null;
   onJoinQueue: () => void;
   onLeaveQueue: () => void;
   onResign: () => void;
@@ -93,6 +106,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
   onlineState,
   currentTurn,
   gameStatus,
+  moveCount,
+  pieceCounts,
+  matchStartedAt,
+  matchEndedAt,
   onJoinQueue,
   onLeaveQueue,
   onResign,
@@ -101,10 +118,17 @@ export const HomeView: React.FC<HomeViewProps> = ({
   onSignIn,
 }) => {
   const [flavorIndex, setFlavorIndex] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     if (onlineState.inQueue) setFlavorIndex(nextFlavor());
   }, [onlineState.inQueue]);
+
+  useEffect(() => {
+    if (!onlineState.roomId || !matchStartedAt || matchEndedAt) return;
+    const id = window.setInterval(() => setNow(Date.now()), 30000);
+    return () => window.clearInterval(id);
+  }, [onlineState.roomId, matchStartedAt, matchEndedAt]);
 
   return (
     <div className="w-full min-w-0 grid grid-cols-1 lg:grid-cols-2 gap-8 xl:gap-12 items-center">
@@ -129,31 +153,62 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </p>
         </div>
 
-        <RoleSummary field="goal" className="hidden sm:grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-8 pt-6 border-t border-slate-800 z-10" />
-
         <div className="pt-1 z-10 flex flex-col gap-3 w-full min-w-0">
           {onlineState.roomId ? (
-            <div className="flex flex-col gap-3 w-full min-w-0">
-              <div className="space-y-1">
-                <p className="text-slate-100 font-semibold">
-                  {onlineState.opponentName ? `Match vs ${onlineState.opponentName}` : 'Online match'}
-                </p>
-                <p className="text-sm text-slate-400">
-                  {gameStatus !== 'playing'
-                    ? 'This match has ended.'
-                    : onlineState.role && onlineState.role === currentTurn
-                      ? 'Your turn'
-                      : `Waiting for ${onlineState.opponentName || 'your opponent'}`}
-                </p>
+            <div className="relative flex flex-col gap-3 w-full min-w-0 rounded-xl border border-slate-700 bg-slate-950/40 p-4">
+              <Btn
+                onClick={onResign}
+                variant="ghost"
+                size="icon"
+                title="Resign"
+                aria-label="Resign"
+                className="absolute top-2 right-2 min-h-11 min-w-11 text-slate-400 hover:bg-rose-950 hover:text-rose-300"
+              >
+                <LogOut className="w-5 h-5" />
+              </Btn>
+              <div className="space-y-3 pr-12">
+                <div className="space-y-1">
+                  <p className="text-slate-100 font-semibold">
+                    {onlineState.opponentName ? `Match vs ${onlineState.opponentName}` : 'Online match'}
+                  </p>
+                  <p className="text-sm text-slate-400">
+                    {gameStatus !== 'playing'
+                      ? 'This match has ended.'
+                      : onlineState.role && onlineState.role === currentTurn
+                        ? 'Your turn'
+                        : `Waiting for ${onlineState.opponentName || 'your opponent'}`}
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                  <p className="text-slate-400">
+                    Moves <span className="font-mono font-semibold text-slate-200">{moveCount}</span>
+                  </p>
+                  <p className="text-slate-400">
+                    Played <span className="font-mono font-semibold text-slate-200">{formatPlayedDuration(matchStartedAt, matchEndedAt, now)}</span>
+                  </p>
+                  {PLAYER_ROLES.map((role) => {
+                    const { meta, live, lost, cap } = forceStats(role, pieceCounts);
+                    return (
+                      <div key={role} className={`flex items-center gap-1.5 ${meta.mutedClass}`}>
+                        <RoleIcon role={role} className={`w-3.5 h-3.5 ${meta.colorClass}`} />
+                        <span className={`font-mono font-semibold ${meta.countClass}`}>{live}</span>
+                        <span className="font-mono text-xs text-slate-400">/{cap}</span>
+                        {role === 'defenders' && pieceCounts.hasKing && (
+                          <Crown className="w-3.5 h-3.5 text-amber-300" />
+                        )}
+                        {lost > 0 && <span className="font-mono text-xs text-rose-300">-{lost}</span>}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full min-w-0">
-                <Btn onClick={onResign} variant="ghost" className="w-full min-w-0 min-h-14 hover:bg-rose-950 hover:text-rose-300">
-                  Resign
-                </Btn>
-                <Btn onClick={onEnterBoard} variant="success" className="w-full min-w-0 min-h-14 text-sm sm:text-base font-bold">
-                  Return to board
-                </Btn>
-              </div>
+              <Btn onClick={onEnterBoard} variant="success" className="w-full min-h-14 text-sm sm:text-base font-bold">
+                {gameStatus !== 'playing'
+                  ? 'Review board'
+                  : onlineState.role === currentTurn
+                    ? 'Take your turn'
+                    : 'Return to board'}
+              </Btn>
             </div>
           ) : onlineState.inQueue ? (
             <Btn

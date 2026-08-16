@@ -1,4 +1,4 @@
-import { PlayerRole, VICTORY_REASON } from '../types';
+import { PieceCounts, PlayerRole, STARTING_SOLDIER_COUNTS, VICTORY_REASON } from '../types';
 
 export const PLAYER_ROLES: readonly PlayerRole[] = ['defenders', 'attackers'];
 
@@ -51,3 +51,14 @@ export const ROLE_META: Record<
     scarClass: 'bg-sky-400',
   },
 };
+
+export function forceStats(role: PlayerRole, pieceCounts: PieceCounts) {
+  const live = pieceCounts[role];
+  const lost = role === 'defenders' ? pieceCounts.capturedDefenders : pieceCounts.capturedAttackers;
+  return {
+    meta: ROLE_META[role],
+    live,
+    lost,
+    cap: STARTING_SOLDIER_COUNTS[role],
+  };
+}

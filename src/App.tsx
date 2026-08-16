@@ -48,6 +48,7 @@ import { RulesModal } from './components/RulesModal';
 import { SettingsModal } from './components/SettingsModal';
 import { PlayersModal } from './components/PlayersModal';
 import { MatchFoundModal } from './components/MatchFoundModal';
+import { ResignModal } from './components/ResignModal';
 import { MoveHistory } from './components/MoveHistory';
 import { HomeView } from './components/HomeView';
 import { UpdateBanner } from './components/UpdateBanner';
@@ -100,10 +101,13 @@ export default function App() {
   const [isRulesOpen, setIsRulesOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPlayersOpen, setIsPlayersOpen] = useState(false);
+  const [isResignOpen, setIsResignOpen] = useState(false);
   const [pendingMatch, setPendingMatch] = useState<MatchFound | null>(null);
   const [matchReady, setMatchReady] = useState(false);
   const [opponentReady, setOpponentReady] = useState(false);
   const [isSandboxMode, setIsSandboxMode] = useState(false);
+  const [matchStartedAt, setMatchStartedAt] = useState(0);
+  const [matchEndedAt, setMatchEndedAt] = useState<number | null>(null);
   const [boardBroken, setBoardBroken] = useState(false);
   const [settings, setSettings] = useState<GameSettings>({
     soundEnabled: true,
@@ -504,19 +508,25 @@ export default function App() {
     setOnlineState((prev) => ({ ...prev, inQueue: false }));
   }, []);
 
-  const handleResign = useCallback(() => {
-    const roomId = onlineStateRef.current.roomId;
-    const uid = onlineStateRef.current.uid;
-    if (!roomId) return;
+  const handleResignRequest = useCallback(() => {
     if (pendingMatchRef.current) {
       handleDeclineMatch();
       return;
     }
+    if (!onlineStateRef.current.roomId) return;
+    setIsResignOpen(true);
+  }, [handleDeclineMatch]);
+
+  const handleResignConfirm = useCallback(() => {
+    const roomId = onlineStateRef.current.roomId;
+    const uid = onlineStateRef.current.uid;
+    setIsResignOpen(false);
+    if (!roomId) return;
     void sessionService.resign(roomId).then(() => {
       if (uid) void statsService.setActiveRoomId(uid, null);
       indexedRoomRef.current = null;
     });
-  }, [handleDeclineMatch]);
+  }, []);
 
   const handleUndo = useCallback(() => {
     const stack = historyStackRef.current;
@@ -552,7 +562,7 @@ export default function App() {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       const activeTag = document.activeElement?.tagName.toLowerCase();
       if (activeTag === 'input' || activeTag === 'textarea' || activeTag === 'select') return;
-      if (isRulesOpen || isSettingsOpen || isPlayersOpen || gameStatus !== 'playing') return;
+      if (isRulesOpen || isSettingsOpen || isPlayersOpen || isResignOpen || gameStatus !== 'playing') return;
       if (e.key === 'u' || e.key === 'U') handleUndo();
       else if (e.key === 'm' || e.key === 'M') setSettings((prev) => ({ ...prev, soundEnabled: !prev.soundEnabled }));
       else if (e.key === 'r' || e.key === 'R') setIsRulesOpen(true);
@@ -560,10 +570,11 @@ export default function App() {
     };
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [isRulesOpen, isSettingsOpen, isPlayersOpen, gameStatus, handleUndo]);
+  }, [isRulesOpen, isSettingsOpen, isPlayersOpen, isResignOpen, gameStatus, handleUndo]);
 
   useBackButton(() => {
     if (showMoveHistory) setShowMoveHistory(false);
+    else if (isResignOpen) setIsResignOpen(false);
     else if (pendingMatch) handleDeclineMatch();
     else if (isPlayersOpen) setIsPlayersOpen(false);
     else if (isSettingsOpen) setIsSettingsOpen(false);
@@ -702,6 +713,8 @@ export default function App() {
           restartAt: room.restartAt ?? null,
           players: roomPlayers(room),
         };
+        setMatchStartedAt(room.restartAt ?? room.createdAt);
+        setMatchEndedAt(room.status === 'finished' ? (room.lastMoveAt ?? Date.now()) : null);
 
         if (room.status === 'playing') {
           sessionService.persistRoom(roomId);
@@ -760,6 +773,8 @@ export default function App() {
         setOpponentReady(false);
         indexedRoomRef.current = null;
         lastAppliedStateAtRef.current = 0;
+        setMatchStartedAt(0);
+        setMatchEndedAt(null);
         setOnlineState((prev) => ({ ...prev, ...CLEAR_MATCH }));
         if (uid) void statsService.setActiveRoomId(uid, null);
       },
@@ -848,6 +863,8 @@ export default function App() {
       <div className={`w-full mx-auto px-4 sm:px-8 pt-3 sm:pt-5 pb-4 sm:pb-6 flex flex-col flex-1 min-h-0 ${viewMode === 'home' ? 'max-w-6xl' : 'max-w-4xl'}`}>
         {appUpdate.available && (
           <UpdateBanner
+            currentId={appUpdate.currentId}
+            latestId={appUpdate.latestId}
             onUpdate={() => {
               soundEngine.playSignIn();
               appUpdate.apply();
@@ -877,9 +894,13 @@ export default function App() {
               onlineState={onlineState}
               currentTurn={currentTurn}
               gameStatus={gameStatus}
+              moveCount={moveHistory.length}
+              pieceCounts={pieceCounts}
+              matchStartedAt={matchStartedAt}
+              matchEndedAt={matchEndedAt}
               onJoinQueue={handleJoinQueue}
               onLeaveQueue={handleLeaveQueue}
-              onResign={handleResign}
+              onResign={handleResignRequest}
               onEnterBoard={() => (pendingMatch ? handleAcceptMatch() : setViewMode('game'))}
               onPlayAsGuest={() => void handlePlayAsGuest()}
               onSignIn={() => void handleSignIn()}
@@ -902,7 +923,7 @@ export default function App() {
                   Return home
                 </Btn>
                 {onlineState.roomId && (
-                  <Btn onClick={handleResign} variant="ghost" className="w-full min-h-14 hover:bg-rose-950 hover:text-rose-300">
+                  <Btn onClick={handleResignRequest} variant="ghost" className="w-full min-h-14 hover:bg-rose-950 hover:text-rose-300">
                     Resign
                   </Btn>
                 )}
@@ -968,6 +989,11 @@ export default function App() {
         opponentReady={opponentReady}
         onJoin={handleAcceptMatch}
         onLeave={handleDeclineMatch}
+      />
+      <ResignModal
+        isOpen={isResignOpen}
+        onCancel={() => setIsResignOpen(false)}
+        onConfirm={handleResignConfirm}
       />
       <VictoryModal
         status={gameStatus}

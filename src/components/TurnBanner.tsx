@@ -1,7 +1,7 @@
 import React from 'react';
 import { Crown, History, Flask, RefreshCw } from '../icons';
-import { Move, PieceCounts, PlayerRole, STARTING_SOLDIER_COUNTS } from '../types';
-import { PLAYER_ROLES, ROLE_META } from '../utils/roles';
+import { Move, PieceCounts, PlayerRole } from '../types';
+import { PLAYER_ROLES, ROLE_META, forceStats } from '../utils/roles';
 import { Btn, RoleIcon } from './ui';
 
 interface TurnBannerProps {
@@ -14,17 +14,6 @@ interface TurnBannerProps {
   isEscapeThreat?: boolean;
   onResetBoard?: () => void;
   onOpenHistory: () => void;
-}
-
-function forceStats(role: PlayerRole, pieceCounts: PieceCounts) {
-  const live = pieceCounts[role];
-  const lost = role === 'defenders' ? pieceCounts.capturedDefenders : pieceCounts.capturedAttackers;
-  return {
-    meta: ROLE_META[role],
-    live,
-    lost,
-    cap: STARTING_SOLDIER_COUNTS[role],
-  };
 }
 
 export const TurnBanner: React.FC<TurnBannerProps> = ({

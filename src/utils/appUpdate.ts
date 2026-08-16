@@ -6,8 +6,14 @@ function openLatestApk() {
   if (url) window.open(url, '_blank');
 }
 
+export function formatBuildId(id: string): string {
+  return id.length > 7 ? id.slice(0, 7) : id;
+}
+
 export function useAppUpdate() {
   const [available, setAvailable] = useState(false);
+  const [currentId, setCurrentId] = useState<string | null>(import.meta.env.VITE_BUILD_ID || null);
+  const [latestId, setLatestId] = useState<string | null>(null);
   const applyRef = useRef(() => {
     if (Capacitor.isNativePlatform()) openLatestApk();
     else window.location.reload();
@@ -16,9 +22,10 @@ export function useAppUpdate() {
   useEffect(() => {
     let cancelled = false;
 
-    const offer = (apply: () => void) => {
+    const offer = (apply: () => void, latest?: string) => {
       if (cancelled) return;
       applyRef.current = apply;
+      if (latest) setLatestId(latest);
       setAvailable(true);
     };
 
@@ -35,6 +42,7 @@ export function useAppUpdate() {
 
     const manifestUrl = import.meta.env.VITE_UPDATE_MANIFEST;
     const buildId = import.meta.env.VITE_BUILD_ID;
+    if (buildId) setCurrentId(buildId);
     if (!manifestUrl || !buildId) return () => {
       cancelled = true;
     };
@@ -46,7 +54,7 @@ export function useAppUpdate() {
         offer(() => {
           if (Capacitor.isNativePlatform()) openLatestApk();
           else window.location.reload();
-        });
+        }, data.id);
       })
       .catch(() => undefined);
 
@@ -57,6 +65,8 @@ export function useAppUpdate() {
 
   return {
     available,
+    currentId,
+    latestId,
     apply() {
       applyRef.current();
     },
