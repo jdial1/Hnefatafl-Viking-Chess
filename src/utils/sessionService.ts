@@ -34,7 +34,7 @@ import {
   RoomResult,
 } from '../types';
 import { auth, rtdb } from './firebase';
-import { hydrateBoard } from './hnefataflEngine';
+import { hydrateBoard, serializeBoard } from './hnefataflEngine';
 import { hydrateMove } from './sagaVoice';
 import { clipDisplayName, generateRandomNorseName } from './norseNames';
 import { soundEngine } from './soundEngine';
@@ -495,15 +495,18 @@ class SessionService {
   public async sendMove(roomId: string, payload: MovePayload, board: BoardState, currentTurn: PlayerRole): Promise<void> {
     const playerId = requirePlayerId();
     await update(ref(rtdb, `rooms/${roomId}`), {
-      lastMove: payload,
+      lastMove: {
+        ...payload,
+        board: payload.board ? serializeBoard(payload.board) : payload.board,
+      },
       lastMoveBy: playerId,
       lastMoveAt: Date.now(),
-      state: { board, currentTurn },
+      state: { board: serializeBoard(board), currentTurn },
     });
   }
 
   public async sendState(roomId: string, board: BoardState, currentTurn: PlayerRole): Promise<void> {
-    await update(ref(rtdb, `rooms/${roomId}`), { state: { board, currentTurn } });
+    await update(ref(rtdb, `rooms/${roomId}`), { state: { board: serializeBoard(board), currentTurn } });
   }
 
   public async restartGame(roomId: string): Promise<void> {

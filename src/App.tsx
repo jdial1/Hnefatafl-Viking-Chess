@@ -28,6 +28,7 @@ import {
   getValidMoves,
   hydrateBoard,
   isKingThreatened,
+  isPosition,
 } from './utils/hnefataflEngine';
 import { JUICE, hitStopDuration, shakeAmplitude, useScreenShake } from './utils/juice';
 import { createMoveRecord, hydrateMove } from './utils/sagaVoice';
@@ -48,6 +49,7 @@ import { MatchFoundModal } from './components/MatchFoundModal';
 import { MoveHistory } from './components/MoveHistory';
 import { HomeView } from './components/HomeView';
 import { UpdateBanner } from './components/UpdateBanner';
+import { Btn, ViewErrorBoundary, celticKnotClass } from './components/ui';
 import { useAppUpdate } from './utils/appUpdate';
 
 const STORAGE = {
@@ -100,6 +102,7 @@ export default function App() {
   const [matchReady, setMatchReady] = useState(false);
   const [opponentReady, setOpponentReady] = useState(false);
   const [isSandboxMode, setIsSandboxMode] = useState(false);
+  const [boardBroken, setBoardBroken] = useState(false);
   const [settings, setSettings] = useState<GameSettings>({
     soundEnabled: true,
     showValidMoves: true,
@@ -108,9 +111,30 @@ export default function App() {
   const [stats, setStats] = useState<GameStats>(() => ({ ...EMPTY_STATS, ...loadJson(STORAGE.stats, EMPTY_STATS) }));
 
   const appUpdate = useAppUpdate();
-  const playBoard = useMemo(() => hydrateBoard(board), [board]);
-  const pieceCounts = useMemo(() => countPieces(playBoard), [playBoard]);
-  const isEscapeThreat = useMemo(() => isKingThreatened(playBoard), [playBoard]);
+  const playState = useMemo(() => {
+    try {
+      const nextBoard = hydrateBoard(board);
+      const pieceCounts = countPieces(nextBoard);
+      const empty = pieceCounts.attackers + pieceCounts.defenders === 0 && !pieceCounts.hasKing;
+      return {
+        playBoard: nextBoard,
+        pieceCounts,
+        isEscapeThreat: empty ? false : isKingThreatened(nextBoard),
+        broken: empty,
+      };
+    } catch {
+      const nextBoard = hydrateBoard(null);
+      return {
+        playBoard: nextBoard,
+        pieceCounts: countPieces(nextBoard),
+        isEscapeThreat: false,
+        broken: true,
+      };
+    }
+  }, [board]);
+  const playBoard = playState.playBoard;
+  const pieceCounts = playState.pieceCounts;
+  const isEscapeThreat = playState.isEscapeThreat;
   const { scope: boardScope, shake } = useScreenShake(settings.juiceEnabled);
 
   const boardRef = useRef(board);
@@ -140,6 +164,10 @@ export default function App() {
   }, [stats]);
 
   useEffect(() => {
+    if (playState.broken) setBoardBroken(true);
+  }, [playState.broken]);
+
+  useEffect(() => {
     if (isEscapeThreat && !prevEscapeThreatRef.current && gameStatus === 'playing') {
       soundEngine.playEscapeThreat();
     }
@@ -153,7 +181,9 @@ export default function App() {
     if (parsed.board) setBoard(hydrateBoard(parsed.board));
     if (parsed.currentTurn) setCurrentTurn(parsed.currentTurn as PlayerRole);
     if (Array.isArray(parsed.moveHistory)) {
-      const history = (parsed.moveHistory as Move[]).map(hydrateMove);
+      const history = (parsed.moveHistory as Move[])
+        .map(hydrateMove)
+        .filter((move) => isPosition(move.from) && isPosition(move.to) && move.piece);
       setMoveHistory(history);
       if (history.length > 0) {
         const last = history[history.length - 1];
@@ -338,6 +368,7 @@ export default function App() {
     setHistoryStack([]);
     setGameStatus('playing');
     setStatusReason('');
+    setBoardBroken(false);
   }, []);
 
   const offerMatch = useCallback((match: MatchFound) => {
@@ -404,6 +435,7 @@ export default function App() {
   const handleGoHome = useCallback(() => {
     setViewMode('home');
     setIsSandboxMode(false);
+    setBoardBroken(false);
   }, []);
 
   const handleSetUsername = useCallback(async (name: string) => {
@@ -479,6 +511,8 @@ export default function App() {
     setOpponentReady(false);
     if (roomId) void sessionService.leaveRoom(roomId);
     setOnlineState((prev) => ({ ...prev, ...CLEAR_MATCH }));
+    setBoardBroken(false);
+    setViewMode('home');
   }, []);
 
   const handleUndo = useCallback(() => {
@@ -540,6 +574,10 @@ export default function App() {
   const handleRemoteMove = useCallback(
     (data: MovePayload) => {
       const { from, to, nextTurn: incomingNextTurn, moveRecord } = data;
+      if (!isPosition(from) || !isPosition(to)) {
+        setBoardBroken(true);
+        return;
+      }
       const piece = moveRecord?.piece ?? boardRef.current[from.r]?.[from.c];
       const { newBoard, captured } = executeMove(boardRef.current, from, to);
       const nextTurn = incomingNextTurn ?? (currentTurnRef.current === 'defenders' ? 'attackers' : 'defenders');
@@ -672,11 +710,14 @@ export default function App() {
           lastAppliedMoveAtRef.current = room.lastMoveAt ?? 0;
           lastRestartAtRef.current = room.restartAt ?? 0;
           if (room.state) {
-            setBoard(room.state.board);
-            boardRef.current = room.state.board;
+            const restored = hydrateBoard(room.state.board);
+            setBoard(restored);
+            boardRef.current = restored;
             setCurrentTurn(room.state.currentTurn);
             currentTurnRef.current = room.state.currentTurn;
-            void sessionService.sendState(roomId, boardRef.current, currentTurnRef.current);
+            const counts = countPieces(restored);
+            const empty = counts.attackers + counts.defenders === 0 && !counts.hasKing;
+            if (!empty) void sessionService.sendState(roomId, restored, currentTurnRef.current);
           }
           return;
         }
@@ -794,6 +835,30 @@ export default function App() {
               onPlayAsGuest={() => void handlePlayAsGuest()}
               onSignIn={() => void handleSignIn()}
             />
+          ) : boardBroken ? (
+            <section
+              className={celticKnotClass(
+                false,
+                'bg-slate-900 border border-slate-800 rounded-xl px-6 py-10 sm:px-8 flex flex-col gap-5 w-full min-w-0'
+              )}
+            >
+              <div className="space-y-3 max-w-prose">
+                <h2 className="text-xl sm:text-2xl text-slate-100 font-semibold leading-tight">This match could not be restored</h2>
+                <p className="text-base text-slate-200 leading-relaxed">
+                  The board data is unreadable, likely from a mid-game reload. Return home and start another game.
+                </p>
+              </div>
+              <div className="flex flex-col gap-3 w-full min-w-0">
+                <Btn onClick={handleGoHome} variant="primary" className="w-full min-h-14 text-sm sm:text-base font-bold">
+                  Return home
+                </Btn>
+                {onlineState.roomId && (
+                  <Btn onClick={handleLeaveRoom} variant="ghost" className="w-full min-h-14 hover:bg-rose-950 hover:text-rose-300">
+                    Leave match
+                  </Btn>
+                )}
+              </div>
+            </section>
           ) : (
             <>
               {(onlineState.roomId || isSandboxMode) && (
@@ -810,26 +875,32 @@ export default function App() {
                 />
               )}
               <div className="w-full pt-2 sm:pt-3">
-                <motion.div ref={boardScope} className="w-full">
-                  <Board
-                    board={playBoard}
-                    selectedPos={selectedPos}
-                    validMoves={validMoves}
-                    lastMove={lastMove}
-                    dyingPieces={dyingPieces}
-                    scars={scars}
-                    moveCount={moveHistory.length}
-                    currentTurn={currentTurn}
-                    playerRole={onlineState.role}
-                    showValidMoves={settings.showValidMoves}
-                    juiceEnabled={settings.juiceEnabled}
-                    isEscapeThreat={isEscapeThreat}
-                    onSelectPiece={handleSelectPiece}
-                    onMovePiece={(to) => {
-                      if (selectedPos) handleMakeMove(selectedPos, to);
-                    }}
-                  />
-                </motion.div>
+                <ViewErrorBoundary
+                  resetKey={moveHistory.length}
+                  onError={() => setBoardBroken(true)}
+                  fallback={null}
+                >
+                  <motion.div ref={boardScope} className="w-full">
+                    <Board
+                      board={playBoard}
+                      selectedPos={selectedPos}
+                      validMoves={validMoves}
+                      lastMove={lastMove}
+                      dyingPieces={dyingPieces}
+                      scars={scars}
+                      moveCount={moveHistory.length}
+                      currentTurn={currentTurn}
+                      playerRole={onlineState.role}
+                      showValidMoves={settings.showValidMoves}
+                      juiceEnabled={settings.juiceEnabled}
+                      isEscapeThreat={isEscapeThreat}
+                      onSelectPiece={handleSelectPiece}
+                      onMovePiece={(to) => {
+                        if (selectedPos) handleMakeMove(selectedPos, to);
+                      }}
+                    />
+                  </motion.div>
+                </ViewErrorBoundary>
               </div>
             </>
           )}

@@ -125,7 +125,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </p>
         </div>
 
-        <RoleSummary field="goal" className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-8 pt-6 border-t border-slate-800 z-10" />
+        <RoleSummary field="goal" className="hidden sm:grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-8 pt-6 border-t border-slate-800 z-10" />
 
         <div className="pt-1 z-10 flex flex-col gap-3 w-full min-w-0">
           {onlineState.roomId ? (

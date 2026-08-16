@@ -41,6 +41,21 @@ export function emptyBoard(): BoardState {
   return Array.from({ length: BOARD_SIZE }, () => Array<CellState>(BOARD_SIZE).fill(null));
 }
 
+export function isPosition(value: unknown): value is Position {
+  if (!value || typeof value !== 'object') return false;
+  const r = (value as Position).r;
+  const c = (value as Position).c;
+  return Number.isInteger(r) && Number.isInteger(c) && r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE;
+}
+
+export function cellAt(board: BoardState, r: number, c: number): CellState {
+  return board[r]?.[c] ?? null;
+}
+
+export function serializeBoard(board: BoardState): (Piece | 0)[][] {
+  return hydrateBoard(board).map((row) => row.map((cell) => cell ?? 0));
+}
+
 export function hydrateBoard(raw: unknown): BoardState {
   const board = emptyBoard();
   if (!raw || typeof raw !== 'object') return board;
@@ -107,8 +122,9 @@ export function createInitialBoard(): BoardState {
  * Calculates valid moves for a piece at (fromR, fromC)
  */
 export function getValidMoves(board: BoardState, from: Position): Position[] {
+  if (!isPosition(from)) return [];
   const grid = hydrateBoard(board);
-  const piece = grid[from.r][from.c];
+  const piece = cellAt(grid, from.r, from.c);
   if (!piece) return [];
 
   const validMoves: Position[] = [];
@@ -119,8 +135,8 @@ export function getValidMoves(board: BoardState, from: Position): Position[] {
 
     while (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE) {
       // Check if square is occupied
-      if (grid[nr][nc] !== null) {
-        break; // Obstacle hit
+      if (cellAt(grid, nr, nc) !== null) {
+        break;
       }
 
       // Check special square rules
@@ -165,10 +181,10 @@ export function isSquareHostile(
   if (isCorner(r, c)) return true;
 
   // Empty throne is hostile to all non-king pieces
-  if (isThrone(r, c) && board[r][c] === null) return true;
+  const occupant = cellAt(board, r, c);
+  if (isThrone(r, c) && occupant === null) return true;
 
-  // Occupied by enemy piece
-  const piece = board[r][c];
+  const piece = occupant;
   if (piece && piece.role !== targetRole) {
     return true;
   }
@@ -186,7 +202,8 @@ export function executeMove(
   to: Position
 ): { newBoard: BoardState; captured: Position[] } {
   const newBoard = hydrateBoard(board);
-  const piece = newBoard[from.r][from.c];
+  if (!isPosition(from) || !isPosition(to)) return { newBoard, captured: [] };
+  const piece = cellAt(newBoard, from.r, from.c);
   if (!piece) return { newBoard, captured: [] };
 
   newBoard[from.r][from.c] = null;
@@ -250,10 +267,10 @@ export function checkKingCaptured(board: BoardState, kingPos: Position): boolean
         continue;
       }
 
-      if (isThrone(nr, nc) && board[nr][nc] === null) {
+      if (isThrone(nr, nc) && cellAt(board, nr, nc) === null) {
         hostileCount++;
       } else {
-        const p = board[nr][nc];
+        const p = cellAt(board, nr, nc);
         if (p && p.role === 'attackers') {
           hostileCount++;
         }

@@ -57,7 +57,7 @@ export const Board: React.FC<BoardProps> = memo(({
 
   const validMoveSet = useMemo(() => positionSet(validMoves), [validMoves]);
   const lastMoveSet = useMemo(
-    () => positionSet(lastMove ? [lastMove.from, lastMove.to] : []),
+    () => positionSet(lastMove?.from && lastMove.to ? [lastMove.from, lastMove.to] : []),
     [lastMove]
   );
   const dyingByCell = useMemo(
@@ -72,7 +72,7 @@ export const Board: React.FC<BoardProps> = memo(({
   }, [scars]);
 
   const handleCellClick = (r: number, c: number) => {
-    const piece = board[r][c];
+    const piece = board[r]?.[c];
     if (selectedPos && validMoveSet.has(cellKey(r, c))) {
       onMovePiece({ r, c });
       return;
@@ -121,7 +121,9 @@ export const Board: React.FC<BoardProps> = memo(({
   };
 
   const arrowData = useMemo(() => {
-    if (!lastMove) return null;
+    if (!lastMove?.from || lastMove.from.r == null || lastMove.from.c == null || lastMove.to.r == null || lastMove.to.c == null) {
+      return null;
+    }
     const fromX = lastMove.from.c * 100 + 50;
     const fromY = lastMove.from.r * 100 + 50;
     const toX = lastMove.to.c * 100 + 50;
@@ -251,19 +253,19 @@ export const Board: React.FC<BoardProps> = memo(({
 
             {Array.from({ length: BOARD_SIZE }).map((_, r) =>
               Array.from({ length: BOARD_SIZE }).map((_, c) => {
-                const piece = board[r][c];
+                const piece = board[r]?.[c];
                 const isSelected = selectedPos?.r === r && selectedPos?.c === c;
                 const isFocused = focusedPos?.r === r && focusedPos?.c === c;
                 const isValid = showValidMoves && validMoveSet.has(cellKey(r, c));
                 const dyingPiece = dyingByCell.get(cellKey(r, c));
                 const scar = scarByCell.get(cellKey(r, c));
-                const isLandingCell = Boolean(lastMove && lastMove.to.r === r && lastMove.to.c === c);
+                const isLandingCell = Boolean(lastMove?.to && lastMove.to.r === r && lastMove.to.c === c);
                 const isAlertKing = isEscapeThreat && piece?.type === 'king';
                 const isLast = lastMoveSet.has(cellKey(r, c));
                 const isCornerSquare = isCorner(r, c);
                 const isThroneSquare = isThrone(r, c);
-                const ghostPiece = lastMove?.piece || (lastMove ? board[lastMove.to.r]?.[lastMove.to.c] : null);
-                const isGhostCell = Boolean(lastMove && lastMove.from.r === r && lastMove.from.c === c && !piece && ghostPiece);
+                const ghostPiece = lastMove?.piece || (lastMove?.to ? board[lastMove.to.r]?.[lastMove.to.c] : null);
+                const isGhostCell = Boolean(lastMove?.from && lastMove.from.r === r && lastMove.from.c === c && !piece && ghostPiece);
                 const isTouched = touchingCell?.r === r && touchingCell?.c === c;
                 const isDragHovered = hoveredDragCell?.r === r && hoveredDragCell?.c === c;
 

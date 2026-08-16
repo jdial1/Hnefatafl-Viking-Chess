@@ -256,3 +256,28 @@ export function RoleSummary({
     </div>
   );
 }
+
+export class ViewErrorBoundary extends React.Component<
+  { fallback: React.ReactNode; onError?: () => void; resetKey?: string | number; children: React.ReactNode },
+  { failed: boolean }
+> {
+  state = { failed: false };
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  componentDidCatch() {
+    this.props.onError?.();
+  }
+
+  componentDidUpdate(prevProps: { resetKey?: string | number }) {
+    if (prevProps.resetKey !== this.props.resetKey && this.state.failed) {
+      this.setState({ failed: false });
+    }
+  }
+
+  render() {
+    return this.state.failed ? this.props.fallback : this.props.children;
+  }
+}
